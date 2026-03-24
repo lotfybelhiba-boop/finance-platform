@@ -1,0 +1,1208 @@
+import React, { useState, useEffect } from 'react';
+import Header from '../components/Header';
+import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, RotateCcw, Calendar } from 'lucide-react';
+import { getBankTransactions, saveBankTransactions, getFactures, getClients, getStorage, setStorage } from '../services/storageService';
+
+const BanquePage = () => {
+    // Manual transactions
+    const [manualTransactions, setManualTransactions] = useState(() => {
+        const saved = getBankTransactions();
+        return (saved && saved.length > 0) ? saved : [
+            { id: 1, date: '2026-03-08', desc: 'Loyer Bureau', bank: 'BIAT', type: 'Debit', amount: 850, category: 'Charges', chargeType: 'Exploitations', chargeNature: 'Fixes', serviceMonth: '2026-03', paymentDate: '2026-03-08' },
+            { id: 2, date: '2026-03-05', desc: 'Retrait Personnel', bank: 'QNB', type: 'Debit', amount: 500, category: 'Perso', serviceMonth: '2026-03', paymentDate: '2026-03-05' }
+        ];
+    });
+
+    // Invoices loaded from local storage
+    const [factures, setFactures] = useState(() => getFactures());
+
+    // Clients loaded from local storage for automated salaries
+    const [clients, setClients] = useState(() => getClients());
+    const activeClients = clients.filter(c => c.etatClient === 'Actif');
+
+    // Sponsoring loaded from local storage
+    const [sponsoringList, setSponsoringList] = useState(() => getStorage('mynds_sponsoring', []));
+
+    const [isIdManual, setIsIdManual] = useState(false);
+    const [selectedBank, setSelectedBank] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState(null);
+    const [isTVAModalOpen, setIsTVAModalOpen] = useState(false);
+    const [editingTVA, setEditingTVA] = useState(null);
+
+    const [activeTab, setActiveTab] = useState('Entrées'); // 'Entrées', 'Charges Mynds', 'Charges Perso', 'TVA'
+    
+    // Filters for Entrées
+    const [entreesMonthFilter, setEntreesMonthFilter] = useState('all');
+    const [entreesClientFilter, setEntreesClientFilter] = useState('all');
+
+    // Filters for Charges Mynds
+    const [selectedMonthFilter, setSelectedMonthFilter] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+    const [chargeTypeFilter, setChargeTypeFilter] = useState('all'); // 'all', 'RH'
+
+    // TVA Transactions
+    const [tvaTransactions, setTvaTransactions] = useState(() => getStorage('mynds_tva_achats', []));
+
+    // Ignored Transactions History List
+    const [ignoredTxs, setIgnoredTxs] = useState(() => getStorage('mynds_ignored_transactions', []));
+
+    // Écouteur de synchronisation multi-onglets
+    useEffect(() => {
+        const syncData = () => {
+            const savedTx = getBankTransactions();
+            if (savedTx) setManualTransactions(savedTx);
+            setFactures(getFactures() || []);
+            setClients(getClients() || []);
+            setSponsoringList(getStorage('mynds_sponsoring', []));
+            setTvaTransactions(getStorage('mynds_tva_achats', []));
+            setIgnoredTxs(getStorage('mynds_ignored_transactions', []));
+        };
+        window.addEventListener('storage', syncData);
+        return () => window.removeEventListener('storage', syncData);
+    }, []);
+
+    useEffect(() => {
+        setStorage('mynds_ignored_transactions', ignoredTxs);
+    }, [ignoredTxs]);
+
+    useEffect(() => {
+        saveBankTransactions(manualTransactions);
+    }, [manualTransactions]);
+
+    useEffect(() => {
+        setStorage('mynds_tva_achats', tvaTransactions);
+    }, [tvaTransactions]);
+
+    // Compute automated transactions from paid invoices
+    const autoTransactions = factures
+        .filter(f => f.statut === 'Paid')
+        .flatMap(f => {
+            const isNonDeclare = f.id.startsWith('ND-');
+
+            // Extract the month and year from the service period start, or fallback to emission date
+            const serviceDate = f.periodeDebut ? new Date(f.periodeDebut) : new Date(f.dateEmi);
+            const serviceMonthFormatted = `${serviceDate.getFullYear()}-${String(serviceDate.getMonth() + 1).padStart(2, '0')}`;
+
+            const baseTrans = {
+                id: `auto-${f.id}`,
+                date: f.dateEmi, // We keep date as original record date for sorting
+                desc: `Facture ${f.client}`,
+                bank: f.compteEncaissement || (isNonDeclare ? 'QNB' : 'BIAT'),
+                type: 'Credit',
+                amount: parseFloat(f.montant) || 0,
+                category: 'Facture',
+                isAuto: true,
+                originalId: f.id,
+                serviceMonth: serviceMonthFormatted,
+                paymentDate: f.datePaiement || f.dateEmi // Use datePaiement if it exists on the invoice, else fallback to dateEmi
+            };
+
+            const generated = [baseTrans];
+
+            if (f.isExtra && f.coutExtra > 0) {
+                generated.push({
+                    id: `auto-extra-${f.id}`,
+                    date: f.dateEmi,
+                    desc: `Coût Auto Mission Extra (${f.ressourceExtra || 'Externe'}) - Facture ${f.id}`,
+                    bank: f.compteEncaissement || (isNonDeclare ? 'QNB' : 'BIAT'),
+                    type: 'Debit',
+                    amount: parseFloat(f.coutExtra) || 0,
+                    category: 'Charges',
+                    chargeType: 'Exploitations',
+                    chargeNature: 'Variables',
+                    isAuto: true,
+                    originalId: f.id,
+                    serviceMonth: serviceMonthFormatted,
+                    paymentDate: f.datePaiement || f.dateEmi
+                });
+            }
+
+            return generated;
+        });
+
+    // Extract target year/month for contract validation (used for Sponsoring)
+    const [selYearStr, selMonthStr] = selectedMonthFilter.split('-');
+    const targetY = parseInt(selYearStr, 10);
+    const targetM = parseInt(selMonthStr, 10) - 1; // 0-indexed
+
+    const isMonthInContract = (client, ty, tm) => {
+        if (!client) return false;
+        const targetDateObj = new Date(ty, tm, 1);
+        const start = client.dateDebut && client.dateDebut !== '-' ? new Date(client.dateDebut) : new Date(2000, 0, 1);
+        
+        let end;
+        if (client.dateFin) {
+            end = new Date(client.dateFin);
+        } else if (client.regime === 'Projet' && client.dureeMois) {
+            end = new Date(start.getFullYear(), start.getMonth() + parseInt(client.dureeMois) - 1, start.getDate());
+        } else {
+            end = new Date(ty, 11, 31);
+        }
+        
+        const startMonthObj = new Date(start.getFullYear(), start.getMonth(), 1);
+        const endMonthObj = new Date(end.getFullYear(), end.getMonth(), 1);
+        
+        return targetDateObj >= startMonthObj && targetDateObj <= endMonthObj;
+    };
+
+    // Compute automated sponsoring costs, projected dynamically like salaries!
+    const autoSponsoring = [];
+    sponsoringList.forEach(s => {
+        if (s.statut !== 'En pause' && isMonthInContract(s, targetY, targetM)) {
+            autoSponsoring.push({
+                id: `auto-sponsoring-${s.id}-${selectedMonthFilter}`,
+                date: `${selectedMonthFilter}-10`, // Assume typically paid mid-month
+                desc: `Achat Sponsoring ${s.plateforme} - ${s.client}`,
+                bank: 'BIAT',
+                type: 'Debit',
+                amount: parseFloat(s.montantTNDBanque) || 0,
+                category: 'Charges',
+                chargeType: 'Exploitations',
+                chargeNature: 'Variables',
+                isAuto: true,
+                originalId: s.id,
+                serviceMonth: selectedMonthFilter,
+                paymentDate: `${selectedMonthFilter}-10`
+            });
+        }
+    });
+
+    // Combine manual, auto invoices, auto sponsoring
+    const allTransactions = [...manualTransactions, ...autoTransactions, ...autoSponsoring].map(t => ({
+        ...t,
+        isIgnored: ignoredTxs.some(ignored => ignored.id === t.id)
+    }));
+
+    // Extract unique RH names/roles dynamically for the filter dropdown
+    const uniqueRHNames = Array.from(new Set(
+        allTransactions
+            .filter(t => t.chargeType === 'RH' || t.category === 'Mynds Salaire' || t.desc.toLowerCase().includes('salaire'))
+            .map(t => {
+                if (t.desc.startsWith('Salaire ')) {
+                    const parts = t.desc.split('-');
+                    if (parts.length > 0) {
+                        return parts[0].replace('Salaire', '').trim();
+                    }
+                }
+            })
+            .filter(Boolean)
+    )).sort();
+
+    const uniqueEntreesClients = Array.from(new Set(
+        allTransactions
+            .filter(t => t.type === 'Credit' && t.isAuto)
+            .map(t => t.desc.replace('Facture ', '').trim())
+    )).sort();
+
+    const formatMoney = (amount) => {
+        return new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(amount);
+    };
+
+    const handleSave = (t) => {
+        if (parseFloat(t.amount) < 0) {
+            alert("❗ Opération refusée.\nLe montant d'une transaction ne peut pas être négatif.");
+            return;
+        }
+        
+        if (editingTransaction && editingTransaction.id !== undefined) {
+            // C'est une vraie modification d'une transaction manuelle
+            setManualTransactions(manualTransactions.map(item => item.id === t.id ? t : item));
+        } else {
+            // Création d'une nouvelle transaction OU validation d'un draft (id n'existe pas encore dans manualTransactions)
+            setManualTransactions([...manualTransactions, { ...t, id: Date.now() }]);
+        }
+        setIsModalOpen(false);
+        setEditingTransaction(null);
+    };
+
+    const handleDelete = (id) => {
+        if (window.confirm("Supprimer cette transaction manuelle ?")) {
+            setManualTransactions(manualTransactions.filter(t => t.id !== id));
+        }
+    };
+
+    const handleEdit = (t) => {
+        if (t.isAuto) return; // Prevention for auto invoices
+        setEditingTransaction(t);
+        setIsModalOpen(true);
+    };
+
+    const handleValidateDraft = (t) => {
+        // Open modal with draft prefilled so user can modify date/bank/amount before saving as permanent
+        setEditingTransaction({
+            ...t,
+            isDraft: false,  // Remove draft flag to lock it as an actual transaction
+            statut: 'Payé' // Ensure status flips from 'En attente'
+        });
+        setIsModalOpen(true);
+    };
+
+    const toggleIgnore = (t) => {
+        const alreadyIgnored = ignoredTxs.some(item => item.id === t.id);
+        if (alreadyIgnored) {
+            setIgnoredTxs(ignoredTxs.filter(item => item.id !== t.id));
+        } else {
+            setIgnoredTxs([...ignoredTxs, t]);
+        }
+    };
+
+    // --- TVA Handlers ---
+    const handleSaveTVA = (tva) => {
+        if (editingTVA) {
+            setTvaTransactions(tvaTransactions.map(item => item.id === tva.id ? tva : item));
+        } else {
+            setTvaTransactions([...tvaTransactions, { ...tva, id: Date.now() }]);
+        }
+        setIsTVAModalOpen(false);
+        setEditingTVA(null);
+    };
+
+    const handleDeleteTVA = (id) => {
+        if (window.confirm("Supprimer cet enrgistrement de TVA ?")) {
+            setTvaTransactions(tvaTransactions.filter(t => t.id !== id));
+        }
+    };
+
+    const handleEditTVA = (tva) => {
+        setEditingTVA(tva);
+        setIsTVAModalOpen(true);
+    };
+
+    const balanceBIAT = allTransactions
+        .filter(t => t.bank === 'BIAT' && !t.isDraft && !t.isIgnored)
+        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+
+    const balanceQNB = allTransactions
+        .filter(t => t.bank === 'QNB' && !t.isDraft && !t.isIgnored)
+        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+
+    const balanceEspeces = allTransactions
+        .filter(t => t.bank === 'Espèces' && !t.isDraft && !t.isIgnored)
+        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+
+    const filteredTransactions = allTransactions
+        .filter(t => !t.isIgnored) // Hide ignored transactions entirely from Banque
+        .filter(t => selectedBank === 'all' || t.bank === selectedBank)
+        .filter(t => t.desc.toLowerCase().includes(searchTerm.toLowerCase()))
+        .filter(t => {
+            if (activeTab === 'Entrées') {
+                if (t.type !== 'Credit') return false;
+                if (entreesMonthFilter !== 'all') {
+                    const tMonth = t.date.substring(0, 7);
+                    if (tMonth !== entreesMonthFilter) return false;
+                }
+                if (entreesClientFilter !== 'all') {
+                    // Check if the client name is part of the description, case-insensitive
+                    // Assuming client name is typically found after "Facture " or similar
+                    const clientNameInDesc = t.desc.toLowerCase().includes(entreesClientFilter.toLowerCase());
+                    if (!clientNameInDesc) return false;
+                }
+                return true;
+            }
+            if (activeTab === 'Charges Mynds') {
+                if (t.type !== 'Debit' || t.category === 'Perso') return false;
+                // Specific "Charges Mynds" Tab Filters
+                if (selectedMonthFilter && t.serviceMonth !== selectedMonthFilter) return false;
+                
+                const isRHCharge = t.chargeType === 'RH' || t.category === 'Mynds Salaire' || t.desc.toLowerCase().includes('salaire');
+                
+                if (chargeTypeFilter === 'RH') {
+                    return isRHCharge;
+                } else if (chargeTypeFilter.startsWith('RH-')) {
+                    const specificName = chargeTypeFilter.replace('RH-', '');
+                    return isRHCharge && t.desc.includes(specificName);
+                }
+                
+                return true;
+            }
+            if (activeTab === 'Charges Perso') return t.type === 'Debit' && t.category === 'Perso';
+            return false;
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const totalTVA = tvaTransactions.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+    const filteredTVA = tvaTransactions
+        .filter(t => t.fournisseur.toLowerCase().includes(searchTerm.toLowerCase()))
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    return (
+        <div style={{ padding: '0 24px' }}>
+            <Header showMonthSelector={false} title="Banque" subtitle="Suivi des Comptes & Transactions" />
+
+            {/* TOP LAYOUT: 70% Balances / 30% Expected Transfers Timeline */}
+            <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', alignItems: 'stretch' }}>
+                
+                {/* LEFT COLUMN: Balances */}
+                <div style={{ flex: '2', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {/* Total Global Mini Card */}
+                    <div style={{
+                        background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px',
+                        display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
+                    }}>
+                        <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Solde Global Net
+                        </div>
+                        <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--text-main)', marginTop: '4px' }}>
+                            {formatMoney(balanceBIAT + balanceQNB + balanceEspeces)}
+                        </div>
+                    </div>
+
+                    {/* The 3 Bank Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', flex: 1 }}>
+                        {/* BIAT Card */}
+                        <div style={{
+                            background: 'var(--text-main)', padding: '16px', borderRadius: '16px', color: 'white',
+                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden'
+                        }}>
+                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1 }}><Landmark size={80} /></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <div style={{ fontSize: '9px', fontWeight: '700', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Compte BIAT</div>
+                                </div>
+                                <div style={{ background: 'rgba(255,193,5,0.2)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: 'var(--accent-gold)' }}>SOCIÉTÉ</div>
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: '900', marginTop: '12px' }}>{formatMoney(balanceBIAT)}</div>
+                        </div>
+
+                        {/* QNB Card */}
+                        <div style={{
+                            background: 'white', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)',
+                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden'
+                        }}>
+                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', color: 'var(--text-muted)', opacity: 0.05 }}><Wallet size={80} /></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Compte QNB</div>
+                                </div>
+                                <div style={{ background: 'rgba(220, 38, 38, 0.1)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: '#dc2626' }}>PERSO</div>
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--text-main)', marginTop: '12px' }}>{formatMoney(balanceQNB)}</div>
+                        </div>
+
+                        {/* Espèces Card */}
+                        <div style={{
+                            background: 'var(--bg-main)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)',
+                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden'
+                        }}>
+                            <div style={{ position: 'absolute', bottom: '-5px', right: '-5px', color: 'var(--accent-gold)', opacity: 0.1 }}><Calculator size={70} /></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                    <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Espèces Cash</div>
+                                </div>
+                                <div style={{ background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: '#10b981' }}>MAIN</div>
+                            </div>
+                            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--text-main)', marginTop: '12px' }}>{formatMoney(balanceEspeces)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* RIGHT COLUMN: Calendar / Expected Transfers */}
+                <div style={{
+                    flex: '1', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '16px',
+                    display: 'flex', flexDirection: 'column', maxHeight: '200px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px dashed var(--border-color)' }}>
+                        <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '6px', borderRadius: '8px', display: 'flex' }}>
+                            <Calendar size={14} />
+                        </div>
+                        <div>
+                            <h3 style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-main)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Échéancier Bancaire</h3>
+                            <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: '600', marginTop: '2px' }}>Virements & Encaissements attendus</div>
+                        </div>
+                    </div>
+
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                        {(() => {
+                            const pendingAlerts = [];
+                            const now = new Date();
+                            const currentY = now.getFullYear();
+                            const currentM = now.getMonth();
+
+                            // 1. Sent or Late Invoices
+                            factures.forEach(f => {
+                                if (f.statut === 'Sent' || f.statut === 'Late') {
+                                    let calculatedDate;
+                                    
+                                    // IGNORER L'ECHEANCE DE LA FACTURE : TOUJOURS CALCULER DEPUIS LA FICHE CLIENT EN TEMPS RÉEL
+                                    const clientRef = activeClients.find(c => c.id === f.clientId || c.enseigne === f.client);
+                                    
+                                    if (clientRef) {
+                                        const delay = parseInt(clientRef.delaiPaiement, 10);
+                                        
+                                        if (!isNaN(delay)) {
+                                            // Priority 1: User defined delay (e.g., 30 days, 60 days)
+                                            const emiObj = new Date(f.dateEmi);
+                                            emiObj.setDate(emiObj.getDate() + delay);
+                                            calculatedDate = emiObj.toISOString().split('T')[0];
+                                        } else if (clientRef.regime === 'Abonnement' && clientRef.jourPaiement) {
+                                            // Priority 2: Fallback to Abonnement Custom 'jourPaiement' (e.g., 5th of the month)
+                                            const dPay = parseInt(clientRef.jourPaiement, 10) || 5;
+                                            const emiObj = new Date(f.dateEmi);
+                                            let targetM = emiObj.getMonth();
+                                            let targetY = emiObj.getFullYear();
+                                            
+                                            // If emission date passed the monthly payment day, it cascades to the next month
+                                            if (emiObj.getDate() > dPay) {
+                                                targetM += 1;
+                                                if (targetM > 11) {
+                                                    targetM = 0;
+                                                    targetY += 1;
+                                                }
+                                            }
+                                            
+                                            const targetDateObj = new Date(targetY, targetM, dPay);
+                                            calculatedDate = `${targetDateObj.getFullYear()}-${String(targetDateObj.getMonth() + 1).padStart(2, '0')}-${String(targetDateObj.getDate()).padStart(2, '0')}`;
+                                        } else if (clientRef.regime === 'One-Shot' && clientRef.datePaiement) {
+                                            // Priority 3: One-Shot default scheduled payment date
+                                            calculatedDate = clientRef.datePaiement;
+                                        } else {
+                                            // Priority 4: Universal 48h emergency fallback
+                                            const emiObj = new Date(f.dateEmi);
+                                            emiObj.setDate(emiObj.getDate() + 2);
+                                            calculatedDate = emiObj.toISOString().split('T')[0];
+                                        }
+                                    } else {
+                                        // Unknown Client fallback (uses emission date + 48h)
+                                        const emiObj = new Date(f.dateEmi);
+                                        emiObj.setDate(emiObj.getDate() + 2);
+                                        calculatedDate = emiObj.toISOString().split('T')[0];
+                                    }
+
+                                    pendingAlerts.push({
+                                        id: `inv-${f.id}`,
+                                        type: f.statut === 'Late' ? 'Retard' : 'Facturé',
+                                        client: f.client,
+                                        desc: `Facture ${f.id}`,
+                                        date: calculatedDate,
+                                        amount: f.montant,
+                                        urgency: f.statut === 'Late' ? 'high' : 'medium'
+                                    });
+                                }
+                            });
+
+                            // 2. Active Abonnements not invoiced for the current month
+                            activeClients.forEach(c => {
+                                if (c.regime === 'Abonnement' && isMonthInContract(c, currentY, currentM)) {
+                                    const hasInvoiceThisMonth = factures.some(f => {
+                                        if (f.client !== c.enseigne && f.clientId !== c.id) return false;
+                                        const d = f.periodeDebut ? new Date(f.periodeDebut) : new Date(f.dateEmi);
+                                        return !isNaN(d.getTime()) && d.getFullYear() === currentY && d.getMonth() === currentM;
+                                    });
+                                    
+                                    if (!hasInvoiceThisMonth) {
+                                        const estimatedTTC = (c.montantMensuel || 0) * (c.sousTVA === false ? 1 : 1.19);
+                                        if (estimatedTTC > 0) {
+                                            const dPay = parseInt(c.jourPaiement, 10) || 5;
+                                            const targetDateObj = new Date(currentY, currentM + 1, dPay);
+                                            const exactDueDate = `${targetDateObj.getFullYear()}-${String(targetDateObj.getMonth() + 1).padStart(2, '0')}-${String(targetDateObj.getDate()).padStart(2, '0')}`;
+                                            
+                                            let periodLabel = `Mois ${String(currentM+1).padStart(2,'0')}`;
+                                            if (c.modeCycle === 'Du 15 au 14') periodLabel = `15/${String(currentM+1).padStart(2,'0')} - 14/${String(targetDateObj.getMonth()+1).padStart(2,'0')}`;
+                                            else if (c.modeCycle === 'Personnalisé' || c.modeCycle === 'Date de début') periodLabel = `Cycle du ${c.jourCycle}`;
+
+                                            pendingAlerts.push({
+                                                id: `sub-${c.id}`,
+                                                type: 'Récurrent',
+                                                client: c.enseigne,
+                                                desc: `Non-facturé (${periodLabel})`,
+                                                date: exactDueDate,
+                                                amount: estimatedTTC,
+                                                urgency: 'low'
+                                            });
+                                        }
+                                    }
+                                }
+                            });
+                            
+                            pendingAlerts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                            if (pendingAlerts.length === 0) {
+                                return <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '12px' }}>Aucun virement en attente.</div>;
+                            }
+
+                            return pendingAlerts.map(alert => {
+                                const dayObj = new Date(alert.date);
+                                const formatDay = !isNaN(dayObj) ? String(dayObj.getDate()).padStart(2, '0') : '??';
+                                const formatMonthStr = !isNaN(dayObj) ? dayObj.toLocaleString('fr-FR', {month: 'short'}) : '???';
+                                
+                                return (
+                                    <div key={alert.id} style={{
+                                        display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderRadius: '10px',
+                                        background: alert.urgency === 'high' ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-main)',
+                                        border: `1px solid ${alert.urgency === 'high' ? 'rgba(239, 68, 68, 0.2)' : 'var(--border-color)'}`,
+                                        transition: 'all 0.2s'
+                                    }}>
+                                        {/* Date Box */}
+                                        <div style={{
+                                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                            background: alert.urgency === 'high' ? '#ef4444' : 'var(--card-bg)', color: alert.urgency === 'high' ? 'white' : 'var(--text-main)',
+                                            borderRadius: '8px', minWidth: '36px', height: '36px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                            border: alert.urgency !== 'high' ? '1px solid var(--border-color)' : 'none'
+                                        }}>
+                                            <span style={{ fontSize: '12px', fontWeight: '900', lineHeight: '1' }}>{formatDay}</span>
+                                            <span style={{ fontSize: '8px', fontWeight: '800', textTransform: 'uppercase', opacity: 0.8 }}>{formatMonthStr}</span>
+                                        </div>
+
+                                        {/* Content Box */}
+                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-main)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{alert.client}</div>
+                                                <div style={{ fontSize: '11px', fontWeight: '900', color: 'var(--text-main)', paddingLeft: '8px' }}>{formatMoney(alert.amount)}</div>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ fontSize: '9px', color: 'var(--text-muted)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{alert.desc}</div>
+                                                <div style={{
+                                                    fontSize: '8px', fontWeight: '800', padding: '2px 4px', borderRadius: '4px',
+                                                    background: alert.urgency === 'high' ? 'rgba(239,68,68,0.1)' : alert.urgency === 'medium' ? 'rgba(245,158,11,0.1)' : 'rgba(59,130,246,0.1)',
+                                                    color: alert.urgency === 'high' ? '#ef4444' : alert.urgency === 'medium' ? '#f59e0b' : '#3b82f6', textTransform: 'uppercase'
+                                                }}>
+                                                    {alert.type}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
+                    </div>
+                </div>
+            </div>
+
+            {/* Tab Navigation */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+                <button
+                    onClick={() => setActiveTab('Entrées')}
+                    style={{
+                        padding: '10px 24px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: activeTab === 'Entrées' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                        color: activeTab === 'Entrées' ? '#10b981' : 'var(--text-muted)',
+                        fontSize: '14px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <ArrowDownLeft size={18} /> Entrées (Recettes)
+                </button>
+                <button
+                    onClick={() => setActiveTab('Charges Mynds')}
+                    style={{
+                        padding: '10px 24px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: activeTab === 'Charges Mynds' ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                        color: activeTab === 'Charges Mynds' ? '#ef4444' : 'var(--text-muted)',
+                        fontSize: '14px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <ArrowUpRight size={18} /> Charges Mynds
+                </button>
+                <button
+                    onClick={() => setActiveTab('Charges Perso')}
+                    style={{
+                        padding: '10px 24px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: activeTab === 'Charges Perso' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                        color: activeTab === 'Charges Perso' ? '#f59e0b' : 'var(--text-muted)',
+                        fontSize: '14px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <ArrowUpRight size={18} /> Charges Perso
+                </button>
+                <div style={{ width: '1px', background: 'var(--border-color)', margin: '0 8px' }}></div>
+                <button
+                    onClick={() => setActiveTab('TVA')}
+                    style={{
+                        padding: '10px 24px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: activeTab === 'TVA' ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
+                        color: activeTab === 'TVA' ? '#0284c7' : 'var(--text-muted)',
+                        fontSize: '14px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <Calculator size={18} /> TVA (Achats)
+                </button>
+            </div>
+
+            {/* Transactions Section */}
+            <div className="card" style={{ padding: '20px', borderRadius: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <h2 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>
+                            {activeTab === 'Entrées' && 'Historique des Entrées'}
+                            {activeTab === 'Charges Mynds' && 'Historique des Charges MYNDS'}
+                            {activeTab === 'Charges Perso' && 'Historique des Charges Perso'}
+                            {activeTab === 'TVA' && 'Registre de la TVA Collectée (Achats)'}
+                        </h2>
+                        {activeTab === 'Charges Mynds' && (
+                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '900' }}>
+                                Total: {formatMoney(filteredTransactions.filter(t => !t.isIgnored).reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ position: 'relative' }}>
+                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <input
+                                type="text"
+                                placeholder="Recherche..."
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                                style={{ padding: '6px 10px 6px 30px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', width: '180px' }}
+                            />
+                        </div>
+                        {activeTab === 'Entrées' && (
+                            <>
+                                <input
+                                    type="month"
+                                    value={entreesMonthFilter === 'all' ? '' : entreesMonthFilter}
+                                    onChange={e => setEntreesMonthFilter(e.target.value || 'all')}
+                                    style={{ padding: '5px 10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', color: '#10b981', outline: 'none' }}
+                                />
+                                <select
+                                    value={entreesClientFilter}
+                                    onChange={e => setEntreesClientFilter(e.target.value)}
+                                    style={{ padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: entreesClientFilter !== 'all' ? '#10b981' : 'var(--text-main)' }}
+                                >
+                                    <option value="all">Tous Clients</option>
+                                    {uniqueEntreesClients.map(name => (
+                                        <option key={name} value={name}>{name}</option>
+                                    ))}
+                                </select>
+                            </>
+                        )}
+                        {activeTab === 'Charges Mynds' && (
+                            <>
+                                <input
+                                    type="month"
+                                    value={selectedMonthFilter}
+                                    onChange={e => setSelectedMonthFilter(e.target.value)}
+                                    style={{ padding: '5px 10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', color: '#ef4444', outline: 'none' }}
+                                />
+                                <select
+                                    value={chargeTypeFilter}
+                                    onChange={e => setChargeTypeFilter(e.target.value)}
+                                    style={{ padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: chargeTypeFilter.startsWith('RH') ? '#3b82f6' : 'var(--text-main)' }}
+                                >
+                                    <option value="all">Toutes Charges</option>
+                                    <option value="RH">Toutes Charges RH</option>
+                                    {uniqueRHNames.length > 0 && (
+                                        <optgroup label="Employés & Rôles RH">
+                                            {uniqueRHNames.map(name => (
+                                                <option key={name} value={`RH-${name}`}>👤 {name}</option>
+                                            ))}
+                                        </optgroup>
+                                    )}
+                                </select>
+                            </>
+                        )}
+                        {activeTab !== 'TVA' && (
+                            <select
+                                value={selectedBank}
+                                onChange={e => setSelectedBank(e.target.value)}
+                                style={{ padding: '6px 10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '600' }}
+                            >
+                                <option value="all">Toutes Banques</option>
+                                <option value="BIAT">BIAT</option>
+                                <option value="QNB">QNB</option>
+                                <option value="Espèces">Espèces</option>
+                            </select>
+                        )}
+                        <button
+                            onClick={() => {
+                                if (activeTab === 'TVA') {
+                                    setEditingTVA(null);
+                                    setIsTVAModalOpen(true);
+                                } else {
+                                    setEditingTransaction(null);
+                                    setIsModalOpen(true);
+                                }
+                            }}
+                            style={{
+                                padding: '6px 16px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: activeTab === 'TVA' ? '#0284c7' : 'var(--text-main)',
+                                color: 'white',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                            }}
+                        >
+                            <Plus size={16} /> Ajouter
+                        </button>
+                    </div>
+                </div>
+
+                {activeTab === 'TVA' && (
+                    <div style={{ background: 'rgba(56, 189, 248, 0.05)', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid rgba(56, 189, 248, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <div style={{ fontSize: '12px', fontWeight: '700', color: '#0284c7', textTransform: 'uppercase' }}>Total TVA (Achats) Enregistrée</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Montant global récupérable</div>
+                        </div>
+                        <div style={{ fontSize: '24px', fontWeight: '900', color: '#0284c7' }}>
+                            {formatMoney(totalTVA)}
+                        </div>
+                    </div>
+                )}
+
+                <div style={{ overflowX: 'auto' }}>
+                    {activeTab !== 'TVA' ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date Saisie</th>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Désignation</th>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mois (Service)</th>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date Paiement</th>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Banque</th>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Catégorie</th>
+                                    <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant</th>
+                                    <th style={{ textAlign: 'center', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>-</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredTransactions.map((t) => {
+                                    // Formatting the month helper ('YYYY-MM' -> 'Jan 2026')
+                                    const serviceMonthDisplay = t.serviceMonth ? new Date(t.serviceMonth + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '-';
+                                    const paymentDateDisplay = t.paymentDate ? new Date(t.paymentDate).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+
+                                    return (
+                                        <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s', background: t.isAuto ? 'var(--bg-main)' : 'white' }} className="table-row-hover">
+                                            <td style={{ padding: '6px 4px', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>
+                                                {new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                                            </td>
+                                            <td style={{ padding: '6px 4px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '11px' }}>{t.desc}</div>
+                                                    {t.isDraft && (
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', padding: '1px 4px', borderRadius: '4px', fontSize: '8px', fontWeight: '800', textTransform: 'uppercase' }}>
+                                                            Brouillon (À Valider)
+                                                        </span>
+                                                    )}
+                                                    {t.isAuto && (
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1px 4px', borderRadius: '4px', fontSize: '8px', fontWeight: '800', textTransform: 'uppercase' }}>
+                                                            <Bot size={10} /> Auto
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '6px 4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                                                {serviceMonthDisplay}
+                                            </td>
+                                            <td style={{ padding: '6px 4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-secondary)' }}>
+                                                {paymentDateDisplay}
+                                            </td>
+                                            <td style={{ padding: '6px 4px' }}>
+                                                <span style={{
+                                                    padding: '2px 4px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '9px',
+                                                    fontWeight: '800',
+                                                    background: t.bank === 'BIAT' ? 'rgba(59, 130, 246, 0.1)' : t.bank === 'QNB' ? 'rgba(220, 38, 38, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                                    color: t.bank === 'BIAT' ? '#3b82f6' : t.bank === 'QNB' ? '#dc2626' : '#10b981'
+                                                }}>
+                                                    {t.bank}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '6px 4px' }}>
+                                                <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-secondary)' }}>
+                                                    {t.category}
+                                                    {t.category === 'Facture' && t.originalId && <span style={{ opacity: 0.5, fontSize: '8px', marginLeft: '4px' }}>({t.originalId})</span>}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'right' }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'flex-end',
+                                                    gap: '4px',
+                                                    fontWeight: '800',
+                                                    fontSize: '12px',
+                                                    color: t.type === 'Credit' ? '#10b981' : '#ef4444'
+                                                }}>
+                                                    {t.type === 'Debit' ? '-' : '+'}{formatMoney(t.amount)}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', alignItems: 'center' }}>
+                                                    {t.isAuto ? (
+                                                        <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.3 }} title="Généré automatiquement (Lecture seule)">
+                                                            <Lock size={14} color="var(--text-muted)" />
+                                                        </div>
+                                                    ) : t.isDraft ? (
+                                                        <button onClick={() => handleValidateDraft(t)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#d97706', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                                                            <Check size={12} strokeWidth={3} /> Valider
+                                                        </button>
+                                                    ) : (
+                                                        <>
+                                                            <button onClick={() => handleEdit(t)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}>
+                                                                <MoreHorizontal size={14} />
+                                                            </button>
+                                                            <button onClick={() => handleDelete(t.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', opacity: 0.5 }}>
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    <button onClick={() => toggleIgnore(t)} title="Ignorer et masquer vers l'historique" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', marginLeft: '4px' }}>
+                                                        <EyeOff size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date Facture</th>
+                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fournisseur / Désignation</th>
+                                    <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant TVA</th>
+                                    <th style={{ textAlign: 'center', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredTVA.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="4" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                            Aucune TVA enregistrée. Cliquez sur "Ajouter" pour commencer.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredTVA.map((t) => (
+                                        <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s', background: 'white' }} className="table-row-hover">
+                                            <td style={{ padding: '12px 8px', fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500' }}>
+                                                {new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                            </td>
+                                            <td style={{ padding: '12px 8px' }}>
+                                                <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13px' }}>{t.fournisseur}</div>
+                                                {t.desc && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{t.desc}</div>}
+                                            </td>
+                                            <td style={{ padding: '12px 8px', textAlign: 'right' }}>
+                                                <div style={{ fontWeight: '800', fontSize: '14px', color: '#0284c7' }}>
+                                                    {formatMoney(t.amount)}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '12px 8px', textAlign: 'center' }}>
+                                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                    <button onClick={() => handleEditTVA(t)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}>
+                                                        <MoreHorizontal size={14} />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteTVA(t.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', opacity: 0.5 }}>
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+            </div>
+
+            {isModalOpen && (
+                <TransactionModal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSave={handleSave}
+                    transaction={editingTransaction}
+                    activeTab={activeTab}
+                />
+            )}
+
+            {isTVAModalOpen && (
+                <TVAModal
+                    isOpen={isTVAModalOpen}
+                    onClose={() => setIsTVAModalOpen(false)}
+                    onSave={handleSaveTVA}
+                    tva={editingTVA}
+                />
+            )}
+        </div>
+    );
+};
+
+const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) => {
+    const defaultType = activeTab === 'Entrées' ? 'Credit' : 'Debit';
+    const defaultCategory = activeTab === 'Charges Perso' ? 'Perso' : (activeTab === 'Charges Mynds' ? 'Mynds Logistique' : 'Autre');
+
+    const [formData, setFormData] = useState(transaction || {
+        date: new Date().toISOString().split('T')[0],
+        desc: '',
+        bank: 'BIAT',
+        type: defaultType,
+        amount: 0,
+        category: defaultCategory,
+        chargeType: 'Exploitations',
+        chargeNature: 'Variables',
+        serviceMonth: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'),
+        paymentDate: new Date().toISOString().split('T')[0]
+    });
+
+    const myndsCategories = [
+        'Mynds Logistique',
+        'Mynds Loyer Bureau',
+        'Mynds Technique',
+        'Mynds Banque',
+        'Mynds Internet',
+        'Mynds Logiciels',
+        'Mynds Fournitures',
+        'Mynds Charges sociales',
+        'Mynds Formation',
+        'Mynds Evenement',
+        'Mynds Comptable',
+        'Mynds Paperasse',
+        'Mynds Prime'
+    ];
+
+    let availableCategories = [];
+    if (activeTab === 'Entrées') {
+        availableCategories = ['Autre', 'Facture'];
+    } else if (activeTab === 'Charges Perso') {
+        availableCategories = ['Perso'];
+    } else {
+        availableCategories = myndsCategories;
+    }
+
+    // Preserve the transaction's category if it's not in the default lists for some reason
+    if (transaction && !availableCategories.includes(transaction.category)) {
+        availableCategories.push(transaction.category);
+    }
+    const chargeTypes = ['Exploitations', 'RH'];
+    const chargeNatures = ['Variables', 'Fixes', 'Investissements'];
+
+    // Determine allowed banks based on category
+    const getAllowedBanks = (cat) => {
+        if (cat === 'Perso') return ['QNB', 'Espèces'];
+        return ['BIAT', 'QNB', 'Espèces']; // Mynds charges & Entry can use any
+    };
+
+    const allowedBanks = getAllowedBanks(formData.category);
+
+    // Ensure current bank and type are valid if category changes
+    useEffect(() => {
+        if (!allowedBanks.includes(formData.bank)) {
+            setFormData(prev => ({ ...prev, bank: allowedBanks[0] }));
+        }
+        // Auto-set Debit for Charges/Perso usually, but leave it flexible
+    }, [formData.category]);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={onClose}>
+            <div className="card" style={{ width: '100%', maxWidth: '440px', padding: '24px', position: 'relative', background: 'white', borderRadius: '24px' }} onClick={e => e.stopPropagation()}>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '20px', color: 'var(--text-main)' }}>{transaction ? 'Modifier' : 'Ajouter'}</h2>
+
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</label>
+                            <input type="date" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Catégorie</label>
+                            <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
+                                {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Désignation</label>
+                        <input type="text" required placeholder="Ex: Loyer, Adobe, Salaire..." value={formData.desc} onChange={e => setFormData({ ...formData, desc: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mois de Service</label>
+                            <input type="month" required value={formData.serviceMonth} onChange={e => setFormData({ ...formData, serviceMonth: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date de Paiement</label>
+                            <input type="date" required value={formData.paymentDate} onChange={e => setFormData({ ...formData, paymentDate: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
+                        </div>
+                    </div>
+
+                    {/* NEW FIELDS FOR CHARGES */}
+                    {formData.category === 'Charges' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--bg-main)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type</label>
+                                <select value={formData.chargeType} onChange={e => setFormData({ ...formData, chargeType: e.target.value })} style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+                                    {chargeTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nature</label>
+                                <select value={formData.chargeNature} onChange={e => setFormData({ ...formData, chargeNature: e.target.value })} style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
+                                    {chargeNatures.map(n => <option key={n} value={n}>{n}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Banque</label>
+                            <select value={formData.bank} onChange={e => setFormData({ ...formData, bank: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600' }}>
+                                {allowedBanks.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant (TND)</label>
+                            <input type="number" step="0.001" required value={formData.amount} onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '14px', fontWeight: '800', textAlign: 'right' }} />
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type de Flux</label>
+                        <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: '10px' }}>
+                            <button type="button" onClick={() => setFormData({ ...formData, type: 'Credit' })} style={{ flex: 1, padding: '6px', borderRadius: '8px', border: 'none', background: formData.type === 'Credit' ? '#10b981' : 'transparent', color: formData.type === 'Credit' ? 'white' : 'var(--text-muted)', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}>ENTRÉE (+)</button>
+                            <button type="button" onClick={() => setFormData({ ...formData, type: 'Debit' })} style={{ flex: 1, padding: '6px', borderRadius: '8px', border: 'none', background: formData.type === 'Debit' ? 'var(--text-main)' : 'transparent', color: formData.type === 'Debit' ? 'white' : 'var(--text-muted)', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}>SORTIE (-)</button>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'transparent', fontWeight: '700', cursor: 'pointer', fontSize: '13px' }}>Annuler</button>
+                        <button type="submit" style={{ flex: 1.5, padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--text-main)', color: 'white', fontWeight: '700', cursor: 'pointer', fontSize: '13px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+const TVAModal = ({ isOpen, onClose, onSave, tva }) => {
+    const [formData, setFormData] = useState(tva || {
+        date: new Date().toISOString().split('T')[0],
+        fournisseur: '',
+        desc: '',
+        amount: 0
+    });
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(formData);
+    };
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'var(--bg-color)', width: '400px', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', background: 'var(--card-bg)' }}>
+                    <h2 style={{ fontSize: '18px', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#0284c7' }}>
+                        <Calculator size={20} />
+                        {tva ? 'Modifier la TVA (Achat)' : 'Déclarer TVA (Achat)'}
+                    </h2>
+                </div>
+
+                <div style={{ padding: '24px' }}>
+                    <form onSubmit={handleSubmit}>
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px' }}>Date</label>
+                            <input
+                                type="date"
+                                value={formData.date}
+                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '14px', fontWeight: '600' }}
+                                required
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px' }}>Fournisseur</label>
+                            <input
+                                type="text"
+                                placeholder="Nom du fournisseur. ex: STEG, Topnet..."
+                                value={formData.fournisseur}
+                                onChange={(e) => setFormData({ ...formData, fournisseur: e.target.value })}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '14px' }}
+                                required
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px' }}>Note / Désignation (Optionnel)</label>
+                            <input
+                                type="text"
+                                placeholder="ex: Facture Internet Février"
+                                value={formData.desc}
+                                onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
+                                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '14px' }}
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '6px' }}>Montant de la TVA (TND)</label>
+                            <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontWeight: '800', color: '#0284c7' }}>DT</span>
+                                <input
+                                    type="number"
+                                    step="0.001"
+                                    min="0"
+                                    value={formData.amount}
+                                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                                    style={{ width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px', border: '1px solid rgba(56, 189, 248, 0.3)', background: 'rgba(56, 189, 248, 0.05)', fontSize: '16px', fontWeight: '800', color: '#0284c7' }}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '30px' }}>
+                            <button type="button" onClick={onClose} style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'transparent', fontWeight: '600', cursor: 'pointer' }}>
+                                Annuler
+                            </button>
+                            <button type="submit" style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#0284c7', color: 'white', fontWeight: '700', cursor: 'pointer' }}>
+                                Enregistrer la TVA
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default BanquePage;

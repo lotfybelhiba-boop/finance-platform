@@ -1,0 +1,386 @@
+@import url('https://fonts.googleapis.com/css2?family=Futura:wght@700&family=Montserrat:wght@400;500;600;700&display=swap');
+
+:root {
+  /* MYNDS Brand Colors - Modern Light Theme */
+  --bg-color: #F8FAFC;
+  /* Softer, slightly cooler light gray background */
+  --card-bg: rgba(255, 255, 255, 0.7);
+  /* Glassmorphism base */
+  --card-bg-solid: #FFFFFF;
+  --accent-gold: #FFC105;
+  --accent-gold-hover: #E0A800;
+
+  /* Text */
+  --text-main: #1E293B;
+  /* Slate 800 - softer than pure black */
+  --text-muted: #64748B;
+  /* Slate 500 */
+
+  /* System Colors - Softer Variants */
+  --success: #10B981;
+  --success-bg: rgba(16, 185, 129, 0.1);
+  --danger: #EF4444;
+  --danger-bg: rgba(239, 68, 68, 0.1);
+  --warning: #F59E0B;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+  --info: #3B82F6;
+  --info-bg: rgba(59, 130, 246, 0.1);
+
+  /* Shadows & Borders - Soft and Large */
+  --card-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08);
+  --card-shadow-hover: 0 20px 40px -10px rgba(0, 0, 0, 0.12);
+  --border-color: rgba(255, 255, 255, 0.5);
+  /* Glass border */
+  --border-solid: #E2E8F0;
+  --radius: 24px;
+  /* Heavy rounding */
+  --radius-sm: 16px;
+
+  /* Typography */
+  --font-heading: 'Futura', sans-serif;
+  --font-body: 'Montserrat', sans-serif;
+
+  /* Glass effects */
+  --glass-blur: blur(16px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Base App Layout */
+.app-container {
+  min-height: 100vh;
+  padding: 32px 48px;
+  max-width: 1600px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glassmorphism Background Blobs */
+.bg-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: -1;
+  opacity: 0.6;
+}
+
+.blob-1 {
+  width: 600px;
+  height: 600px;
+  background: rgba(255, 193, 5, 0.15);
+  /* Gold tint */
+  top: -100px;
+  right: -100px;
+}
+
+.blob-2 {
+  width: 800px;
+  height: 800px;
+  background: rgba(59, 130, 246, 0.1);
+  /* Subtle blue tint */
+  bottom: -200px;
+  left: -200px;
+}
+
+.blob-3 {
+  width: 400px;
+  height: 400px;
+  background: rgba(16, 185, 129, 0.1);
+  /* Subtle green tint */
+  top: 40%;
+  left: 30%;
+}
+
+.dashboard-content {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-title h1 {
+  font-size: 32px;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, var(--text-main), var(--text-muted));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.header-title p {
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* Month Selector - Glassmorphic */
+.month-selector select {
+  padding: 12px 20px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  font-size: 15px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  appearance: none;
+  /* remove default arrow to style cleaner if needed, but keeping simple for now */
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+  padding-right: 2.5rem;
+}
+
+.month-selector select:hover {
+  border-color: var(--accent-gold);
+  box-shadow: 0 8px 24px rgba(255, 193, 5, 0.15);
+  transform: translateY(-2px);
+}
+
+/* Cards - Glassmorphism Base */
+.card {
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  border: 1px solid var(--border-color);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--card-shadow-hover);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+/* Recharts Customization to remove default borders */
+.recharts-wrapper {
+  margin: 0 auto;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--border-color);
+  stroke-dasharray: 4 4;
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--card-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border-radius: var(--radius-sm) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: var(--card-shadow) !important;
+  padding: 12px 16px !important;
+}
+
+.recharts-tooltip-label {
+  color: var(--text-main) !important;
+  font-weight: 600 !important;
+  margin-bottom: 8px !important;
+}
+
+.recharts-tooltip-item {
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  padding: 2px 0 !important;
+}
+
+/* KPI Grid - Compact Wrapping Layout */
+.kpi-grid {
+  display: flex;
+  flex-wrap: wrap;
+  /* Allow wrapping so it never forces horizontal scroll on small screens */
+  gap: 12px;
+  /* Tighter gap */
+  margin-bottom: 32px;
+}
+
+/* Base KPI Card - Smaller */
+.kpi-card {
+  flex: 1 1 120px;
+  /* Equal width, allow wrapping if smaller than 120px */
+  min-width: 120px;
+  /* Highly reduced to fit 7 in a row on standard laptop */
+  padding: 10px 12px;
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-sm);
+  /* Reduced border radius */
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--border-color);
+  cursor: default;
+  overflow: hidden;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--card-shadow-hover);
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(255, 193, 5, 0.3);
+  /* Subtle gold border on hover */
+}
+
+.kpi-title {
+  color: var(--text-muted);
+  font-size: 10px;
+  /* Compact size */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  /* Compact spacing */
+}
+
+.kpi-value {
+  font-size: 15px;
+  /* Compact size */
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 2px;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  /* Keep value on one line */
+}
+
+.kpi-subtext {
+  font-size: 9px;
+  /* Ultra compact text */
+  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.kpi-variation {
+  position: absolute;
+  top: 10px;
+  /* Adjust position */
+  right: 10px;
+  font-size: 10px;
+  /* Smaller text */
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.kpi-variation.positive {
+  color: var(--success);
+  background: var(--success-bg);
+}
+
+.kpi-variation.negative {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* Net Profit Card Highlight */
+.kpi-card-net {
+  min-width: 140px;
+  /* Overwrite the 100% constraint to fit single row */
+  flex: 1.2;
+  /* Give it slightly more space than others */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 193, 5, 0.15));
+  border: 1px solid rgba(255, 193, 5, 0.3);
+  box-shadow: 0 8px 30px -10px rgba(255, 193, 5, 0.15);
+}
+
+.kpi-card-net:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 35px -10px rgba(255, 193, 5, 0.25);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 193, 5, 0.2));
+}
+
+.kpi-card-net .kpi-value {
+  font-size: 28px;
+  /* Larger for the top card */
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--text-main), #B45309);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- Scrolling Banner (Marquee) Animations --- */
+
+.marquee-container {
+  display: flex !important;
+  width: max-content;
+  animation: scroll-left 40s linear infinite;
+  will-change: transform;
+}
+
+/* Pause animation on hover */
+.marquee-container:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    /* Translate left by 33.33% because the content is explicitly duplicated 3 times in React */
+    transform: translateX(-33.3333%);
+  }
+}
+
+.marquee-item:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}

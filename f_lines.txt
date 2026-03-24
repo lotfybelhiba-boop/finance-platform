@@ -1,0 +1,20 @@
+225:const formatMoney = (amount) => {
+355:<td style={{ textAlign: 'right', padding: '8px 4px', borderBottom: '1px dashed #e5e7eb', fontWeight: '700', color: '#111827' }}>{formatMoney(client.caTTC)}</td>
+359:<td style={{ textAlign: 'right', padding: '8px 4px', borderBottom: '1px dashed #e5e7eb', fontWeight: '600', color: '#6b7280' }}>{formatMoney(client.caHT)}</td>
+360:<td style={{ textAlign: 'right', padding: '8px 4px', borderBottom: '1px dashed #e5e7eb', color: '#ef4444' }}>{client.chargesRH > 0 ? `-${formatMoney(client.chargesRH)}` : '-'}</td>
+361:<td style={{ textAlign: 'right', padding: '8px 4px', borderBottom: '1px dashed #e5e7eb', color: '#ef4444' }}>{client.chargeMng > 0 ? `-${formatMoney(client.chargeMng)}` : '-'}</td>
+362:<td style={{ textAlign: 'right', padding: '8px 4px', borderBottom: '1px dashed #e5e7eb', fontWeight: '800', color: client.gain >= 0 ? '#10b981' : '#ef4444' }}>{formatMoney(client.gain)}</td>
+373:<td style={{ textAlign: 'right', padding: '10px 4px', borderTop: '2px solid #111827', fontWeight: '800', color: '#111827' }}>{formatMoney(analytiqueClients.reduce((acc, c) => acc + c.caTTC, 0))}</td>
+375:<td style={{ textAlign: 'right', padding: '10px 4px', borderTop: '2px solid #111827', fontWeight: '800', color: '#6b7280' }}>{formatMoney(analytiqueClients.reduce((acc, c) => acc + c.caHT, 0))}</td>
+376:<td style={{ textAlign: 'right', padding: '10px 4px', borderTop: '2px solid #111827', fontWeight: '700', color: '#ef4444' }}>-{formatMoney(analytiqueClients.reduce((acc, c) => acc + c.chargesRH, 0))}</td>
+377:<td style={{ textAlign: 'right', padding: '10px 4px', borderTop: '2px solid #111827', fontWeight: '700', color: '#ef4444' }}>-{formatMoney(analytiqueClients.reduce((acc, c) => acc + c.chargeMng, 0))}</td>
+378:<td style={{ textAlign: 'right', padding: '10px 4px', borderTop: '2px solid #111827', fontWeight: '800', color: '#10b981' }}>{formatMoney(analytiqueClients.reduce((acc, c) => acc + c.gain, 0))}</td>
+401:<td style={{ textAlign: 'right', padding: '12px 0', borderBottom: '1px dashed #e5e7eb', fontWeight: '600', color: '#111827' }}>{formatMoney(finalRevenusHT)}</td>
+405:<td style={{ textAlign: 'right', padding: '12px 0', borderBottom: '1px dashed #e5e7eb', fontWeight: '500', color: '#6b7280' }}>{formatMoney(finalTVACollectee)}</td>
+409:<td style={{ textAlign: 'right', padding: '12px 16px', fontWeight: '800', color: '#111827', borderTop: '2px solid #e5e7eb', borderBottom: '2px solid #e5e7eb' }}>{formatMoney(finalRevenusTTC)}</td>
+431:<td style={{ textAlign: 'right', padding: '12px 0', borderBottom: '1px dashed #e5e7eb', fontWeight: '500', color: '#374151' }}>{formatMoney(finalExploitation)}</td>
+435:<td style={{ textAlign: 'right', padding: '12px 0', borderBottom: '1px dashed #e5e7eb', fontWeight: '500', color: '#374151' }}>{formatMoney(finalRH)}</td>
+439:<td style={{ textAlign: 'right', padding: '12px 0', borderBottom: '1px dashed #e5e7eb', fontWeight: '500', color: '#374151' }}>{formatMoney(finalMarketing)}</td>
+444:<td style={{ textAlign: 'right', padding: '12px 0', borderBottom: '1px dashed #e5e7eb', fontWeight: '500', color: '#6b7280' }}>{formatMoney(finalTVAReversee)}</td>
+449:<td style={{ textAlign: 'right', padding: '12px 16px', fontWeight: '800', color: '#ef4444', borderTop: '2px solid #e5e7eb', borderBottom: '2px solid #e5e7eb' }}>{formatMoney(finalChargesExploitation)}</td>
+473:{formatMoney(finalBeneficeNet)}

@@ -1,0 +1,345 @@
+﻿
+> financial-dashboard@0.0.0 lint
+> eslint .
+
+
+D:\Mynds Finance\financial-dashboard\src\components\ClientModal.jsx
+  137:66  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  135 |
+  136 |         const newClient = {
+> 137 |             id: initialData ? initialData.id : `CLI-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+      |                                                                  ^^^^^^^^^^^^^ Cannot call impure function
+  138 |             enseigne,
+  139 |             logo,
+  140 |             projet,  react-hooks/purity
+  349:79  error  'index' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+  393:58  error  'index' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\ClientPaymentChart.jsx
+  209:84  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  207 |                             <ZAxis type="number" range={[60, 60]} />
+  208 |
+> 209 |                             <Tooltip cursor={{ strokeDasharray: '3:3' }} content={<CustomTooltip />} />
+      |                                                                                    ^^^^^^^^^^^^^ This component is created during render
+  210 |
+  211 |                             <Scatter data={scatterData}>
+  212 |                                 {scatterData.map((entry, index) => (
+
+  100 |
+  101 |     // Custom Tooltip for the Scatter points
+> 102 |     const CustomTooltip = ({ active, payload }) => {
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 103 |         if (active && payload && payload.length) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 104 |             const data = payload[0].payload;
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 148 |         return null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 149 |     };
+      | ^^^^^^ The component is created during render here
+  150 |
+  151 |     const getDotColor = (status) => {
+  152 |         switch (status) {  react-hooks/static-components
+
+D:\Mynds Finance\financial-dashboard\src\components\DevisModal.jsx
+  60:63  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  58 |         e.preventDefault();
+  59 |         onSave({
+> 60 |             id: `DEV-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+     |                                                               ^^^^^^^^^^^^^ Cannot call impure function
+  61 |             client,
+  62 |             montant: totalTTC,
+  63 |             date: dateEmi,               react-hooks/purity
+  79:63  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  77 |         e.preventDefault();
+  78 |         const currentData = {
+> 79 |             id: `DEV-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+     |                                                               ^^^^^^^^^^^^^ Cannot call impure function
+  80 |             client,
+  81 |             montant: totalTTC,
+  82 |             date: dateEmi,  react-hooks/purity
+
+D:\Mynds Finance\financial-dashboard\src\components\FactureModal.jsx
+   78:22  error  'e' is defined but never used      no-unused-vars
+   78:25  error  Empty block statement              no-empty
+  345:49  error  'index' is defined but never used  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\KPIGrid.jsx
+  1:17  error  'useState' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\MonthlyCalendarCard.jsx
+  76:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  74 |         }
+  75 |
+> 76 |         setDays(newDays);
+     |         ^^^^^^^ Avoid calling setState() directly within an effect
+  77 |     }, [currentDate]);
+  78 |
+  79 |     const handlePrevMonth = () => {  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\components\RHFormModal.jsx
+  18:17  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  16 |         if (isOpen) {
+  17 |             if (initialData) {
+> 18 |                 setFormData(initialData);
+     |                 ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  19 |             } else {
+  20 |                 setFormData({
+  21 |                     id: `RH_${Date.now()}`,  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\components\SponsoringModal.jsx
+  23:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  21 |     useEffect(() => {
+  22 |         if (isOpen) {
+> 23 |             setFormData(initialData ? { ...initialData } : { ...emptySponsoring, id: `SPONSOR-${Date.now()}` });
+     |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  24 |
+  25 |             // Fetch clients for dropdown
+  26 |             const savedClients = localStorage.getItem('mynds_clients');  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\data\defaultConfig.js
+  213:14  error  'e' is defined but never used  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\CalculPage.jsx
+   10:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+   8 |     const [duree, setDuree] = useState('1');
+   9 |     const [monthlyCosts, setMonthlyCosts] = useState([
+> 10 |         { id: Date.now() + 1, desc: 'Ressources Humaines (Salaires/Freelances)', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  11 |         { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+  12 |         { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+  13 |         { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }  react-hooks/purity
+   11:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+   9 |     const [monthlyCosts, setMonthlyCosts] = useState([
+  10 |         { id: Date.now() + 1, desc: 'Ressources Humaines (Salaires/Freelances)', montant: '' },
+> 11 |         { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  12 |         { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+  13 |         { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }
+  14 |     ]);                                       react-hooks/purity
+   12:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  10 |         { id: Date.now() + 1, desc: 'Ressources Humaines (Salaires/Freelances)', montant: '' },
+  11 |         { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+> 12 |         { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  13 |         { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }
+  14 |     ]);
+  15 |                                                                                              react-hooks/purity
+   13:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  11 |         { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+  12 |         { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+> 13 |         { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }
+     |               ^^^^^^^^^^ Cannot call impure function
+  14 |     ]);
+  15 |
+  16 |     // === STATE: SAVED PROJECTS ===                                                                                                                                                         react-hooks/purity
+   21:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  19 |     // === STATE: PERSONAL EXPENSES ===
+  20 |     const [personalCosts, setPersonalCosts] = useState([
+> 21 |         { id: Date.now() + 10, desc: 'Loyer Personnel', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  22 |         { id: Date.now() + 11, desc: 'Nourriture & Courses', montant: '' },
+  23 |         { id: Date.now() + 12, desc: 'Transport / Carburant', montant: '' },
+  24 |         { id: Date.now() + 13, desc: 'Factures (├ëlectricit├®, Eau, Internet perso)', montant: '' },                                react-hooks/purity
+   22:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  20 |     const [personalCosts, setPersonalCosts] = useState([
+  21 |         { id: Date.now() + 10, desc: 'Loyer Personnel', montant: '' },
+> 22 |         { id: Date.now() + 11, desc: 'Nourriture & Courses', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  23 |         { id: Date.now() + 12, desc: 'Transport / Carburant', montant: '' },
+  24 |         { id: Date.now() + 13, desc: 'Factures (├ëlectricit├®, Eau, Internet perso)', montant: '' },
+  25 |     ]);                                                                react-hooks/purity
+   23:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  21 |         { id: Date.now() + 10, desc: 'Loyer Personnel', montant: '' },
+  22 |         { id: Date.now() + 11, desc: 'Nourriture & Courses', montant: '' },
+> 23 |         { id: Date.now() + 12, desc: 'Transport / Carburant', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  24 |         { id: Date.now() + 13, desc: 'Factures (├ëlectricit├®, Eau, Internet perso)', montant: '' },
+  25 |     ]);
+  26 |                                                                                                                         react-hooks/purity
+   24:15  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  22 |         { id: Date.now() + 11, desc: 'Nourriture & Courses', montant: '' },
+  23 |         { id: Date.now() + 12, desc: 'Transport / Carburant', montant: '' },
+> 24 |         { id: Date.now() + 13, desc: 'Factures (├ëlectricit├®, Eau, Internet perso)', montant: '' },
+     |               ^^^^^^^^^^ Cannot call impure function
+  25 |     ]);
+  26 |
+  27 |     // Load from local storage on mount                                                                                                                                                        react-hooks/purity
+   87:17  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  85 |
+  86 |         const newProject = {
+> 87 |             id: Date.now(),
+     |                 ^^^^^^^^^^ Cannot call impure function
+  88 |             name: projectName || `Projet sans nom`,
+  89 |             duration: projectMonths,
+  90 |             revenue: parsedRevenue,                                                                                                                                                                                                                                                                            react-hooks/purity
+  106:19  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  104 |         setDuree('1');
+  105 |         setMonthlyCosts([
+> 106 |             { id: Date.now() + 1, desc: 'Ressources Humaines (Salaires/Freelances)', montant: '' },
+      |                   ^^^^^^^^^^ Cannot call impure function
+  107 |             { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+  108 |             { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+  109 |             { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }                          react-hooks/purity
+  107:19  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  105 |         setMonthlyCosts([
+  106 |             { id: Date.now() + 1, desc: 'Ressources Humaines (Salaires/Freelances)', montant: '' },
+> 107 |             { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+      |                   ^^^^^^^^^^ Cannot call impure function
+  108 |             { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+  109 |             { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }
+  110 |         ]);                                     react-hooks/purity
+  108:19  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  106 |             { id: Date.now() + 1, desc: 'Ressources Humaines (Salaires/Freelances)', montant: '' },
+  107 |             { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+> 108 |             { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+      |                   ^^^^^^^^^^ Cannot call impure function
+  109 |             { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }
+  110 |         ]);
+  111 |     };                                                        react-hooks/purity
+  109:19  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  107 |             { id: Date.now() + 2, desc: 'Abonnements logiciels (SaaS)', montant: '' },
+  108 |             { id: Date.now() + 3, desc: 'Publicit├® & Marketing (Ads)', montant: '' },
+> 109 |             { id: Date.now() + 4, desc: 'Frais G├®n├®raux (Loyer, Internet...)', montant: '' }
+      |                   ^^^^^^^^^^ Cannot call impure function
+  110 |         ]);
+  111 |     };
+  112 |                                                                                                                                                            react-hooks/purity
+
+D:\Mynds Finance\financial-dashboard\src\pages\ClientsPage.jsx
+  109:12  error  'searchTerm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    no-unused-vars
+  109:24  error  'setSearchTerm' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  110:12  error  'filterRegime' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+  110:26  error  'setFilterRegime' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               no-unused-vars
+  116:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  114 |         const savedClients = localStorage.getItem('mynds_clients');
+  115 |         if (savedClients) {
+> 116 |             setClients(JSON.parse(savedClients));
+      |             ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  117 |         } else {
+  118 |             setClients(defaultDummyClients);
+  119 |             localStorage.setItem('mynds_clients', JSON.stringify(defaultDummyClients));  react-hooks/set-state-in-effect
+  323:31  error  'statusStyle' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+  324:31  error  'isAbonnement' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\ConfigPage.jsx
+  62:24  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. This value was memoized in source but not in compilation output.
+
+  60 |
+  61 |     // Derived State for Client dropdown
+> 62 |     const allProjets = useMemo(() => {
+     |                        ^^^^^^^^^^^^^^^
+> 63 |         try {
+     | ^^^^^^^^^^^^^
+> 64 |             const savedClients = localStorage.getItem('mynds_clients');
+     ÔÇª
+     | ^^^^^^^^^^^^^
+> 73 |         return ['Acme Corp - Refonte Site E-commerce', 'TechSolutions Inc - Campagne Ads Q3'];
+     | ^^^^^^^^^^^^^
+> 74 |     }, []);
+     | ^^^^^^^^^^^ Could not preserve existing memoization
+  75 |
+  76 |     // HANDLERS RH
+  77 |     const handleAddRH = () => {  react-hooks/preserve-manual-memoization
+
+D:\Mynds Finance\financial-dashboard\src\pages\SponsoringPage.jsx
+  50:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  48 |         const saved = localStorage.getItem('mynds_sponsoring');
+  49 |         if (saved) {
+> 50 |             setSponsoringList(JSON.parse(saved));
+     |             ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  51 |         } else {
+  52 |             setSponsoringList(defaultDummySponsoring);
+  53 |             localStorage.setItem('mynds_sponsoring', JSON.stringify(defaultDummySponsoring));  react-hooks/set-state-in-effect
+
+Ô£û 36 problems (36 errors, 0 warnings)
+

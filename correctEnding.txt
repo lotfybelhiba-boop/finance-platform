@@ -1,0 +1,130 @@
+            {/* Custom Confirm Modal */}
+            {confirmModal.isOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: 'var(--card-bg)', padding: '24px', borderRadius: '12px', width: '400px', maxWidth: '90%', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                        <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: '16px' }}>Confirmation</h3>
+                        <p style={{ margin: '0 0 24px 0', color: 'var(--text-muted)', fontSize: '14px', lineHeight: '1.5' }}>{confirmModal.message}</p>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button onClick={() => setConfirmModal({ isOpen: false, type: null, id: null, message: '' })} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>Annuler</button>
+                            <button onClick={executeConfirmAction} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'var(--danger)', color: '#fff', cursor: 'pointer', fontWeight: '600' }}>Confirmer</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <InvoiceAuditModal 
+                isOpen={isAuditModalOpen} 
+                onClose={() => setIsAuditModalOpen(false)} 
+            />
+        </div>
+    );
+};
+
+// Extracted Payment Confirmation Component to manage its internal state
+const PaymentConfirmationModal = ({ isOpen, onClose, onConfirm, facture }) => {
+    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isPartial, setIsPartial] = useState(false);
+
+    // Amount remaining to pay for this specific invoice
+    const maxAmount = facture ? (parseFloat(facture.montant) - (facture.montantPaye || 0)) : 0;
+    const [amount, setAmount] = useState(maxAmount);
+
+    // Sync amount if type changes or facture changes
+    React.useEffect(() => {
+        if (!isPartial) setAmount(maxAmount);
+    }, [isPartial, maxAmount]);
+
+    if (!isOpen || !facture) return null;
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+        }}>
+            <div style={{
+                background: 'var(--bg-main)', width: '400px', borderRadius: '24px',
+                padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px' }}>Confirmer le paiement</h2>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', background: 'var(--card-bg)', padding: '12px', borderRadius: '8px' }}>
+                    Facture <strong>{facture.id}</strong> - Client <strong>{facture.client}</strong><br />
+                    Montant total: <strong>{new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND' }).format(facture.montant)}</strong>
+                    {facture.montantPaye > 0 && (
+                        <div style={{ color: 'var(--warning)', marginTop: '4px' }}>
+                            Déjà payé: {new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND' }).format(facture.montantPaye)}<br />
+                            Reste à payer: <strong>{new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND' }).format(maxAmount)}</strong>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Type de Paiement</label>
+                    <div style={{ display: 'flex', gap: '16px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                checked={!isPartial}
+                                onChange={() => setIsPartial(false)}
+                                style={{ accentColor: 'var(--success)' }}
+                            />
+                            Totalité du reste
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                checked={isPartial}
+                                onChange={() => setIsPartial(true)}
+                                style={{ accentColor: 'var(--warning)' }}
+                            />
+                            Partiel (Acompte)
+                        </label>
+                    </div>
+                </div>
+
+                {isPartial && (
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--warning)', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Montant Encaissé (TND)</label>
+                        <input
+                            type="number"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            max={maxAmount}
+                            min={0}
+                            style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid var(--warning)', background: 'var(--card-bg)', color: 'var(--warning)', fontSize: '16px', fontWeight: 'bold' }}
+                        />
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>Le statut de la facture restera ouvert jusqu'à paiement des 100%.</div>
+                    </div>
+                )}
+
+                <div style={{ marginBottom: '24px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '8px', display: 'block' }}>Date d'encaissement</label>
+                    <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]} // Cannot be in future
+                        style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '14px' }}
+                    />
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                    <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: '12px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontWeight: '700', cursor: 'pointer' }}>Annuler</button>
+                    <button
+                        onClick={() => onConfirm(date, isPartial, amount)}
+                        disabled={isPartial && (!amount || amount <= 0 || amount > maxAmount)}
+                        style={{
+                            padding: '10px 20px', borderRadius: '12px', border: 'none',
+                            background: isPartial ? 'var(--warning)' : 'var(--success)', color: 'white',
+                            fontWeight: '700', cursor: 'pointer', opacity: (isPartial && (!amount || amount <= 0 || amount > maxAmount)) ? 0.5 : 1
+                        }}
+                    >
+                        Valider {isPartial ? "l'Acompte" : 'le Paiement'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default FacturesPage;

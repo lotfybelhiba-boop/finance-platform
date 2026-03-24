@@ -1,0 +1,24 @@
+
+> financial-dashboard@0.0.0 build
+> vite build
+
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m✓[39m 1746 modules transformed.
+[31m✗[39m Build failed in 3.52s
+[31merror during build:
+[31msrc/utils/pdfGenerator.js (11:8): Expression expected[31m
+file: [36mD:/Mynds Finance/financial-dashboard/src/utils/pdfGenerator.js:11:8[31m
+[33m
+ 9:     // 2. Render the React component to an HTML string
+10:     const componentHtml = ReactDOMServer.renderToString(
+11:         <PrintableDocument data={data} type={type} />
+            ^
+12:     );
+[31m
+    at getRollupError (file:///D:/Mynds%20Finance/financial-dashboard/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at ParseError.initialise (file:///D:/Mynds%20Finance/financial-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:14465:28)
+    at convertNode (file:///D:/Mynds%20Finance/financial-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:16437:10)
+    at convertProgram (file:///D:/Mynds%20Finance/financial-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:15677:12)
+    at Module.setSource (file:///D:/Mynds%20Finance/financial-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:17392:24)
+    at async ModuleLoader.addModuleSource (file:///D:/Mynds%20Finance/financial-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:21497:13)[39m
