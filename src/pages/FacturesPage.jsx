@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Header from '../components/Header';
 import FactureModal from '../components/FactureModal';
 import InvoicePreviewModal from '../components/InvoicePreviewModal';
 import InvoiceAuditModal from '../components/InvoiceAuditModal';
 import InvoiceStatusHistoryChart from '../components/InvoiceStatusHistoryChart';
-import { Search, Plus, Trash2, Archive, Edit, Send, Printer, History, ShieldCheck } from 'lucide-react';
+import { Search, Plus, Trash2, Edit, Send, Printer, History, ShieldCheck, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import { getFactures, saveFactures, getClients, getStorage, setStorage } from '../services/storageService';
@@ -56,8 +56,6 @@ const FacturesPage = () => {
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, id: null, message: '' });
 
     // --- NEW PENDING SUBSCRIPTION INVOICES KPI ---
-    const [pendingInvoicesStats, setPendingInvoicesStats] = useState({ count: 0, amount: 0, missingClients: [] });
-    const [expandedClientAlerts, setExpandedClientAlerts] = useState({});
     const [ignoredAlerts, setIgnoredAlerts] = useState(() => {
         return getStorage('mynds_ignored_alerts', []);
     });
@@ -69,19 +67,17 @@ const FacturesPage = () => {
         setStorage('mynds_ignored_alerts', newIgnored);
     };
 
-    React.useEffect(() => {
-        const calculatePending = () => {
-            try {
-                const clientsList = getClients() || [];
-                const stats = calculatePendingInvoices(clientsList, factures, ignoredAlerts);
-                setPendingInvoicesStats(stats);
-            } catch (e) {
-                console.error("Erreur calcul factures en attente", e);
-            }
-        };
-
-        calculatePending();
+    const pendingInvoicesStats = useMemo(() => {
+        try {
+            const clientsList = getClients() || [];
+            return calculatePendingInvoices(clientsList, factures, ignoredAlerts);
+        } catch (e) {
+            console.error("Erreur calcul factures en attente", e);
+            return { count: 0, amount: 0, missingClients: [] };
+        }
     }, [factures, ignoredAlerts]);
+
+    const [expandedClientAlerts, setExpandedClientAlerts] = useState({});
     // ---------------------------------------------
 
     // Écouteur pour la synchronisation multi-onglets
@@ -1070,19 +1066,22 @@ const FacturesPage = () => {
                 </table>
             </div>
 
-            <FactureModal
-                isOpen={isModalOpen}
-                onClose={() => {
-                    setIsModalOpen(false);
-                    setEditingFacture(null);
-                    setQuickInvoiceClient(null);
-                    setQuickInvoiceTargetDate(null);
-                }}
-                onSave={handleSaveFacture}
-                factureToEdit={editingFacture}
-                initialClientName={quickInvoiceClient}
-                targetDate={quickInvoiceTargetDate}
-            />
+            {isModalOpen && (
+                <FactureModal
+                    key={editingFacture?.id || 'new'}
+                    isOpen={isModalOpen}
+                    onClose={() => {
+                        setIsModalOpen(false);
+                        setEditingFacture(null);
+                        setQuickInvoiceClient(null);
+                        setQuickInvoiceTargetDate(null);
+                    }}
+                    onSave={handleSaveFacture}
+                    factureToEdit={editingFacture}
+                    initialClientName={quickInvoiceClient}
+                    targetDate={quickInvoiceTargetDate}
+                />
+            )}
 
             <InvoicePreviewModal
                 isOpen={!!previewFacture}

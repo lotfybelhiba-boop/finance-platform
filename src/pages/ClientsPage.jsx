@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import ClientModal from '../components/ClientModal';
-import { Search, Plus, MoreHorizontal, LayoutGrid, List, Edit2, Trash2, Archive, Upload, Users, FileCheck, RefreshCw, Briefcase, UserCircle, ShieldAlert } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, LayoutGrid, List, Edit2, Trash2, Archive, Upload, Users, RefreshCw, Briefcase, ShieldAlert } from 'lucide-react';
 import Papa from 'papaparse';
 import { getClients, saveClients, getStorage, getFactures } from '../services/storageService';
+import { calculatePendingInvoices } from '../utils/billingUtils';
+
 
 const defaultDummyClients = [
     {
@@ -181,6 +183,26 @@ const ClientsPage = () => {
         window.addEventListener('storage', syncData);
         return () => window.removeEventListener('storage', syncData);
     }, []);
+
+    const factures = getFactures() || [];
+    const pendingStats = React.useMemo(() => {
+        return calculatePendingInvoices(clients, factures);
+    }, [clients, factures]);
+
+    const getBillingStatus = (clientId) => {
+        const clientPending = pendingStats.missingClients.filter(c => c.id === clientId);
+        if (clientPending.length > 0) {
+            const isUrgent = clientPending.some(c => c.alertStatus === 'urgent');
+            return {
+                num: clientPending.length,
+                label: `${clientPending.length} manquante${clientPending.length > 1 ? 's' : ''}`,
+                color: isUrgent ? 'var(--danger)' : '#f59e0b',
+                bg: isUrgent ? 'var(--danger-bg)' : 'rgba(245, 158, 11, 0.1)',
+                icon: true
+            };
+        }
+        return { num: 0, label: 'À jour', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', icon: false };
+    };
 
     // Sauvegarde automatique
     useEffect(() => {
@@ -522,9 +544,20 @@ const ClientsPage = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <span style={{ fontSize: '8px', fontWeight: '800', padding: '1px 5px', borderRadius: '10px', background: client.etatClient === 'Actif' ? 'var(--success-bg)' : 'var(--danger-bg)', color: client.etatClient === 'Actif' ? 'var(--success)' : 'var(--danger)', textTransform: 'uppercase' }}>
-                                        {client.etatClient}
-                                    </span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                                        <span style={{ fontSize: '8px', fontWeight: '800', padding: '1px 5px', borderRadius: '10px', background: client.etatClient === 'Actif' ? 'var(--success-bg)' : 'var(--danger-bg)', color: client.etatClient === 'Actif' ? 'var(--success)' : 'var(--danger)', textTransform: 'uppercase' }}>
+                                            {client.etatClient}
+                                        </span>
+                                        {client.etatClient === 'Actif' && (() => {
+                                            const status = getBillingStatus(client.id);
+                                            return (
+                                                <span style={{ fontSize: '8px', fontWeight: '800', padding: '1px 5px', borderRadius: '4px', background: status.bg, color: status.color, border: `1px solid ${status.color}30`, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                    {status.icon && <div style={{ width: '4px', height: '4px', background: status.color, borderRadius: '50%' }}></div>}
+                                                    {status.label}
+                                                </span>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
 
                                 {/* PROJECT & CHARGE (PERSON) */}
@@ -597,6 +630,7 @@ const ClientsPage = () => {
                                     <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Projet / Secteur</th>
                                     <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Statut</th>
                                     <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Régime</th>
+                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Facturation</th>
                                     <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ancienneté</th>
                                     <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>CA / Marge</th>
                                     <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'right' }}>Actions</th>
@@ -656,6 +690,17 @@ const ClientsPage = () => {
                                                 </span>
                                             </td>
                                             <td style={{ padding: '8px 16px' }}>
+                                                {client.etatClient === 'Actif' ? (() => {
+                                                    const status = getBillingStatus(client.id);
+                                                    return (
+                                                        <span style={{ fontSize: '10px', fontWeight: '800', color: status.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <div style={{ width: '6px', height: '6px', background: status.color, borderRadius: '50%' }}></div>
+                                                            {status.label}
+                                                        </span>
+                                                    );
+                                                })() : <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>-</span>}
+                                            </td>
+                                            <td style={{ padding: '8px 16px' }}>
                                                 <div style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-main)' }}>{calculateDuration(client.dateDebut)}</div>
                                             </td>
                                             <td style={{ padding: '8px 16px' }}>
@@ -697,12 +742,15 @@ const ClientsPage = () => {
             }
 
             {/* MODAL */}
-            <ClientModal
-                isOpen={isClientModalOpen}
-                onClose={() => { setIsClientModalOpen(false); setEditingClient(null); }}
-                onSave={handleSaveClient}
-                initialData={editingClient}
-            />
+            {isClientModalOpen && (
+                <ClientModal
+                    key={editingClient?.id || 'new'}
+                    isOpen={isClientModalOpen}
+                    onClose={() => { setIsClientModalOpen(false); setEditingClient(null); }}
+                    onSave={handleSaveClient}
+                    initialData={editingClient}
+                />
+            )}
         </div >
     );
 };

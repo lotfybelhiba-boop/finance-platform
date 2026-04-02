@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
-import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, RotateCcw, Calendar } from 'lucide-react';
+import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, Calendar } from 'lucide-react';
 import { getBankTransactions, saveBankTransactions, getFactures, getClients, getStorage, setStorage } from '../services/storageService';
 
 const BanquePage = () => {
@@ -23,7 +23,7 @@ const BanquePage = () => {
     // Sponsoring loaded from local storage
     const [sponsoringList, setSponsoringList] = useState(() => getStorage('mynds_sponsoring', []));
 
-    const [isIdManual, setIsIdManual] = useState(false);
+
     const [selectedBank, setSelectedBank] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -1016,13 +1016,7 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
 
     const allowedBanks = getAllowedBanks(formData.category);
 
-    // Ensure current bank and type are valid if category changes
-    useEffect(() => {
-        if (!allowedBanks.includes(formData.bank)) {
-            setFormData(prev => ({ ...prev, bank: allowedBanks[0] }));
-        }
-        // Auto-set Debit for Charges/Perso usually, but leave it flexible
-    }, [formData.category]);
+
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -1042,7 +1036,15 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Catégorie</label>
-                            <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
+                            <select value={formData.category} onChange={e => {
+                                const newCat = e.target.value;
+                                const newAllowedBanks = getAllowedBanks(newCat);
+                                setFormData(prev => ({
+                                    ...prev,
+                                    category: newCat,
+                                    bank: newAllowedBanks.includes(prev.bank) ? prev.bank : newAllowedBanks[0]
+                                }));
+                            }} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
                                 {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
                         </div>

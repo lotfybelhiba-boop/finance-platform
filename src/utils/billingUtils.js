@@ -24,7 +24,10 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
     let missingClients = [];
 
     clientsList.forEach(client => {
-        if (client.regime === 'Abonnement' && client.etatClient === 'Actif') {
+        if (client.etatClient !== 'Actif') return;
+
+        // --- 1. SUBSCRIPTION (ABONNEMENT) LOGIC ---
+        if (client.regime === 'Abonnement') {
             let cycleDay = 1;
             if (client.modeCycle === 'Du 15 au 14') {
                 cycleDay = 15;
@@ -75,7 +78,7 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
                 const targetCycleYear = currentYear;
 
                 // L'alerte se déclenche à la FIN du cycle de facturation (ou J-2 max)
-                // La facture de Mars (m=2) pour cycleDay=15 (15/03 -> 14/04) s'alerte le 15/04 (m+1)
+                // Pour mode "Du 15 au 14": la facture m=2 (Mars) couvre 15/03 -> 14/04. Alerte le 15/04.
                 const alertTriggerDate = new Date(targetCycleYear, targetCycleMonth + 1, cycleDay);
 
                 const nowZeroTime = new Date(currentYear, currentMonth, currentDay);
@@ -91,7 +94,7 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
                     alertStatus = 'warning';
                 }
 
-                const clientInvoices = factures.filter(f => f.clientId === client.id);
+                const clientInvoices = factures.filter(f => f.clientId === client.id || f.client === client.enseigne);
                 let hasInvoiceForTarget = false;
 
                 if (clientInvoices.length > 0) {
@@ -99,7 +102,6 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
                         if (f.periodeDebut) {
                             const pd = new Date(f.periodeDebut);
                             if (!isNaN(pd.getTime())) {
-                                // L'invoice couvre ce cycle si son mois/année de début = targetCycleMonth
                                 if (pd.getFullYear() === targetCycleYear && pd.getMonth() === targetCycleMonth) {
                                     return true;
                                 }
@@ -120,7 +122,6 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
 
                 if (!hasInvoiceForTarget) {
                     const alertKey = `${client.id}-${targetCycleMonth}-${targetCycleYear}`;
-
                     if (!ignoredAlerts.includes(alertKey)) {
                         missingCount++;
                         missingAmount += parseFloat(client.montantMensuel || 0);
@@ -130,9 +131,34 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
                             targetMonth: targetCycleMonth,
                             targetYear: targetCycleYear,
                             cycleDay: cycleDay,
-                            alertStatus: alertStatus
+                            alertStatus: alertStatus,
+                            reason: m === startMonth ? 'Début de contrat' : 'Abonnement mensuel'
                         });
                     }
+                }
+            }
+        } 
+        
+        // --- 2. ONE-SHOT LOGIC ---
+        else if (client.regime === 'One-Shot') {
+            const clientInvoices = factures.filter(f => f.clientId === client.id || f.client === client.enseigne);
+            
+            // If no invoice at all and client was created more than 7 days ago
+            if (clientInvoices.length === 0) {
+                const createdDate = client.dateDebut ? new Date(client.dateDebut) : new Date(2025, 0, 1);
+                const diffTime = realNow - createdDate;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays >= 7) {
+                    missingCount++;
+                    missingAmount += parseFloat(client.montantAnnuel || client.montantMensuel || 0);
+                    missingClients.push({
+                        ...client,
+                        targetMonth: realNow.getMonth(),
+                        targetYear: realNow.getFullYear(),
+                        alertStatus: diffDays > 14 ? 'urgent' : 'warning',
+                        reason: 'Facturation initiale attendue'
+                    });
                 }
             }
         }

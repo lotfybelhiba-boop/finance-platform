@@ -33,9 +33,6 @@ const AlertsBlock = ({ targetMonth, targetYear }) => {
     
     today.setHours(0, 0, 0, 0);
 
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-
     // 1. Rappelle des dates fin de nos clients (Dans les 30 prochains jours)
     const nextMonth = new Date(today);
     nextMonth.setDate(today.getDate() + 30);
@@ -52,7 +49,11 @@ const AlertsBlock = ({ targetMonth, targetYear }) => {
 
     // 2. Factures à faire (Abonnements actifs sans facture basé sur leur cycle)
     const pendingStats = calculatePendingInvoices(clients, factures, [], today);
-    let facturesAFaire = pendingStats.missingClients.map(c => ({ name: c.enseigne }));
+    let facturesAFaire = pendingStats.missingClients.map(c => ({ 
+        name: c.enseigne, 
+        date: `${String(c.targetMonth + 1).padStart(2, '0')}/${c.targetYear}`,
+        reason: c.reason 
+    }));
 
     // 3. Factures non envoyés (Statut Draft)
     const draftsList = factures.filter(f => f.statut === 'Draft').map(f => ({ name: f.client, montant: f.montant }));
@@ -60,51 +61,6 @@ const AlertsBlock = ({ targetMonth, targetYear }) => {
     // 4. Rapports à faire
     const isReportTime = today.getDate() >= 25;
     const rapportsText = ["Générer les synthèses mensuelles KPI", "Vérifier la classification des charges"];
-
-    const AlertItem = ({ id, icon, color, title, value, highlight, items, expanded, onToggle }) => (
-        <div style={{ background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid ${highlight ? color : 'var(--border-color)'}`, overflow: 'hidden', transition: 'all 0.2s', cursor: highlight ? 'pointer' : 'default' }}
-             onClick={() => { if (highlight) onToggle(id); }}>
-            
-            {/* Header / Ticket */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', transition: 'background 0.2s' }}
-                 onMouseOver={e => { if (highlight && !expanded) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
-                 onMouseOut={e => { if (highlight && !expanded) e.currentTarget.style.background = 'transparent' }}>
-                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {icon}
-                    </div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>{title}</div>
-                </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '800', color: highlight ? color : 'var(--text-muted)', background: highlight ? `${color}15` : 'transparent', padding: highlight ? '4px 8px' : '0', borderRadius: '6px' }}>
-                        {value}
-                    </div>
-                    {highlight && (
-                        <div style={{ color: 'var(--text-muted)' }}>
-                            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Expanded List Items */}
-            {expanded && items && items.length > 0 && (
-                <div style={{ padding: '0 16px 12px 16px', background: 'var(--bg-main)', borderTop: `1px solid var(--border-color)` }}>
-                    <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {items.map((item, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '6px 8px', background: 'var(--card-bg)', borderRadius: '6px', color: 'var(--text-muted)' }}>
-                                <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>{item.name || item}</span>
-                                {item.date && <span>Échéance: {item.date}</span>}
-                                {item.montant && <span>{item.montant} TND</span>}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
 
     const toggleTab = (id) => {
         setExpandedTab(expandedTab === id ? null : id);
@@ -169,5 +125,53 @@ const AlertsBlock = ({ targetMonth, targetYear }) => {
         </div>
     );
 };
+
+const AlertItem = ({ id, icon, color, title, value, highlight, items, expanded, onToggle }) => (
+    <div style={{ background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid ${highlight ? color : 'var(--border-color)'}`, overflow: 'hidden', transition: 'all 0.2s', cursor: highlight ? 'pointer' : 'default' }}
+         onClick={() => { if (highlight) onToggle(id); }}>
+        
+        {/* Header / Ticket */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', transition: 'background 0.2s' }}
+             onMouseOver={e => { if (highlight && !expanded) e.currentTarget.style.background = 'rgba(0,0,0,0.02)' }}
+             onMouseOut={e => { if (highlight && !expanded) e.currentTarget.style.background = 'transparent' }}>
+             
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ color: color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {icon}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-main)' }}>{title}</div>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '800', color: highlight ? color : 'var(--text-muted)', background: highlight ? `${color}15` : 'transparent', padding: highlight ? '4px 8px' : '0', borderRadius: '6px' }}>
+                    {value}
+                </div>
+                {highlight && (
+                    <div style={{ color: 'var(--text-muted)' }}>
+                        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                )}
+            </div>
+        </div>
+
+        {/* Expanded List Items */}
+        {expanded && items && items.length > 0 && (
+            <div style={{ padding: '0 16px 12px 16px', background: 'var(--bg-main)', borderTop: `1px solid var(--border-color)` }}>
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {items.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px', padding: '6px 8px', background: 'var(--card-bg)', borderRadius: '6px', color: 'var(--text-muted)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                                <span style={{ fontWeight: '700', color: 'var(--text-main)' }}>{item.name || item}</span>
+                                {item.date && <span>Période: {item.date}</span>}
+                                {item.montant && <span>{item.montant} TND</span>}
+                            </div>
+                            {item.reason && <div style={{ fontSize: '10px', fontStyle: 'italic', color: 'var(--text-muted)', opacity: 0.8 }}>{item.reason}</div>}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+    </div>
+);
 
 export default AlertsBlock;

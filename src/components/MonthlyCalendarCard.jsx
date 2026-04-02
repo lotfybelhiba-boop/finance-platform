@@ -1,129 +1,123 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Calendar, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { getClients, getFactures } from '../services/storageService';
 
 const MonthlyCalendarCard = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [days, setDays] = useState([]);
-    const [alerts, setAlerts] = useState({});
 
     // Récupérer les données pour alimenter le calendrier
-    useEffect(() => {
-        const fetchAlerts = () => {
-            const year = currentDate.getFullYear();
-            const month = currentDate.getMonth();
-            const newAlerts = {};
+    const alerts = useMemo(() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const newAlerts = {};
 
-            // Helper function to add alert
-            const addAlert = (day, type, message) => {
-                if (!newAlerts[day]) newAlerts[day] = [];
-                newAlerts[day].push({ type, message });
-            };
+        // Helper function to add alert
+        const addAlert = (day, type, message) => {
+            if (!newAlerts[day]) newAlerts[day] = [];
+            newAlerts[day].push({ type, message });
+        };
 
-            // 1. Déclarations comptables (Dates fixes globales)
-            addAlert(15, 'compta', 'Déclaration Mensuelle (TVA, RS)');
-            if ([0, 3, 6, 9].includes(month)) {
-                addAlert(28, 'compta', 'Déclaration trimestrielle CNSS');
-            }
+        // 1. Déclarations comptables (Dates fixes globales)
+        addAlert(15, 'compta', 'Déclaration Mensuelle (TVA, RS)');
+        if ([0, 3, 6, 9].includes(month)) {
+            addAlert(28, 'compta', 'Déclaration trimestrielle CNSS');
+        }
 
-            // 2. VIREMENTS ATTENDUS (Entrées d'argent réelles calculées dynamiquement)
-            try {
-                const clients = getClients() || [];
-                const factures = getFactures() || [];
-                
-                // A. Factures Emises ou En Retard
-                factures.forEach(f => {
-                    if (f.statut === 'Sent' || f.statut === 'Late') {
-                        let calculatedDate;
-                        const clientRef = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
-                        
-                        if (clientRef) {
-                            const delay = parseInt(clientRef.delaiPaiement, 10);
-                            if (!isNaN(delay)) {
-                                const emiObj = new Date(f.dateEmi);
-                                emiObj.setDate(emiObj.getDate() + delay);
-                                calculatedDate = emiObj;
-                            } else if (clientRef.regime === 'Abonnement' && clientRef.jourPaiement) {
-                                const dPay = parseInt(clientRef.jourPaiement, 10) || 5;
-                                const emiObj = new Date(f.dateEmi);
-                                let tM = emiObj.getMonth();
-                                let tY = emiObj.getFullYear();
-                                if (emiObj.getDate() > dPay) {
-                                    tM += 1;
-                                    if (tM > 11) { tM = 0; tY += 1; }
-                                }
-                                calculatedDate = new Date(tY, tM, dPay);
-                            } else if (clientRef.regime === 'One-Shot' && clientRef.datePaiement) {
-                                calculatedDate = new Date(clientRef.datePaiement);
-                            } else {
-                                const emiObj = new Date(f.dateEmi);
-                                emiObj.setDate(emiObj.getDate() + 2);
-                                calculatedDate = emiObj;
+        // 2. VIREMENTS ATTENDUS (Entrées d'argent réelles calculées dynamiquement)
+        try {
+            const clients = getClients() || [];
+            const factures = getFactures() || [];
+            
+            // A. Factures Emises ou En Retard
+            factures.forEach(f => {
+                if (f.statut === 'Sent' || f.statut === 'Late') {
+                    let calculatedDate;
+                    const clientRef = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
+                    
+                    if (clientRef) {
+                        const delay = parseInt(clientRef.delaiPaiement, 10);
+                        if (!isNaN(delay)) {
+                            const emiObj = new Date(f.dateEmi);
+                            emiObj.setDate(emiObj.getDate() + delay);
+                            calculatedDate = emiObj;
+                        } else if (clientRef.regime === 'Abonnement' && clientRef.jourPaiement) {
+                            const dPay = parseInt(clientRef.jourPaiement, 10) || 5;
+                            const emiObj = new Date(f.dateEmi);
+                            let tM = emiObj.getMonth();
+                            let tY = emiObj.getFullYear();
+                            if (emiObj.getDate() > dPay) {
+                                tM += 1;
+                                if (tM > 11) { tM = 0; tY += 1; }
                             }
+                            calculatedDate = new Date(tY, tM, dPay);
+                        } else if (clientRef.regime === 'One-Shot' && clientRef.datePaiement) {
+                            calculatedDate = new Date(clientRef.datePaiement);
                         } else {
                             const emiObj = new Date(f.dateEmi);
                             emiObj.setDate(emiObj.getDate() + 2);
                             calculatedDate = emiObj;
                         }
+                    } else {
+                        const emiObj = new Date(f.dateEmi);
+                        emiObj.setDate(emiObj.getDate() + 2);
+                        calculatedDate = emiObj;
+                    }
 
-                        // Seulement les afficher si c'est le mois et l'année en cours affichés sur le calendrier
-                        if (calculatedDate && !isNaN(calculatedDate.getTime())) {
-                            if (calculatedDate.getMonth() === month && calculatedDate.getFullYear() === year) {
-                                addAlert(calculatedDate.getDate(), 'entree', `Virement attendu: ${f.client} (${f.montant}TND)`);
-                            }
+                    // Seulement les afficher si c'est le mois et l'année en cours affichés sur le calendrier
+                    if (calculatedDate && !isNaN(calculatedDate.getTime())) {
+                        if (calculatedDate.getMonth() === month && calculatedDate.getFullYear() === year) {
+                            addAlert(calculatedDate.getDate(), 'entree', `Virement attendu: ${f.client} (${f.montant}TND)`);
                         }
                     }
-                });
+                }
+            });
 
-                // Helper to check if a month is within the client contract (start to end dates)
-                const isMonthInContract = (c, year, month) => {
-                    const targetDate = new Date(year, month, 1);
-                    if (c.dateDebut) {
-                        const dStart = new Date(c.dateDebut);
-                        if (!isNaN(dStart.getTime()) && targetDate < new Date(dStart.getFullYear(), dStart.getMonth(), 1)) return false;
+            // Helper to check if a month is within the client contract (start to end dates)
+            const isMonthInContract = (c, year, month) => {
+                const targetDate = new Date(year, month, 1);
+                if (c.dateDebut) {
+                    const dStart = new Date(c.dateDebut);
+                    if (!isNaN(dStart.getTime()) && targetDate < new Date(dStart.getFullYear(), dStart.getMonth(), 1)) return false;
+                }
+                if (c.dateFin) {
+                    const dEnd = new Date(c.dateFin);
+                    if (!isNaN(dEnd.getTime()) && targetDate > new Date(dEnd.getFullYear(), dEnd.getMonth(), 1)) return false;
+                }
+                return true;
+            };
+
+            // B. Abonnements Non facturés (Prévisions)
+            clients.forEach(c => {
+                if (c.regime === 'Abonnement' && c.etatClient === 'Actif' && isMonthInContract(c, year, month)) {
+                    // Check if invoice exists for this month
+                    const hasInvoiceThisMonth = factures.some(f => {
+                        if (f.client !== c.enseigne && f.clientId !== c.id) return false;
+                        const d = f.periodeDebut ? new Date(f.periodeDebut) : new Date(f.dateEmi);
+                        return !isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === month;
+                    });
+
+                    if (!hasInvoiceThisMonth) {
+                        const dPay = parseInt(c.jourPaiement, 10) || 5;
+                        // Le calendrier regarde un mois spécifique, l'abonnement tombe ce mois précis (mois calendaire M, généré fin M-1 en théorie, ou M selon la vision bancaire)
+                        // Pour simplifier et synchroniser avec la Banque: l'entrée est prévue le dPay du mois affiché
+                        addAlert(dPay, 'entree', `Prév. Abonnement: ${c.enseigne}`);
                     }
-                    if (c.dateFin) {
-                        const dEnd = new Date(c.dateFin);
-                        if (!isNaN(dEnd.getTime()) && targetDate > new Date(dEnd.getFullYear(), dEnd.getMonth(), 1)) return false;
-                    }
-                    return true;
-                };
+                }
+            });
 
-                // B. Abonnements Non facturés (Prévisions)
-                clients.forEach(c => {
-                    if (c.regime === 'Abonnement' && c.etatClient === 'Actif' && isMonthInContract(c, year, month)) {
-                        // Check if invoice exists for this month
-                        const hasInvoiceThisMonth = factures.some(f => {
-                            if (f.client !== c.enseigne && f.clientId !== c.id) return false;
-                            const d = f.periodeDebut ? new Date(f.periodeDebut) : new Date(f.dateEmi);
-                            return !isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === month;
-                        });
+        } catch (e) {
+            console.error("Erreur de calcul des prévisions de trésorerie", e);
+        }
 
-                        if (!hasInvoiceThisMonth) {
-                            const dPay = parseInt(c.jourPaiement, 10) || 5;
-                            // Le calendrier regarde un mois spécifique, l'abonnement tombe ce mois précis (mois calendaire M, généré fin M-1 en théorie, ou M selon la vision bancaire)
-                            // Pour simplifier et synchroniser avec la Banque: l'entrée est prévue le dPay du mois affiché
-                            addAlert(dPay, 'entree', `Prév. Abonnement: ${c.enseigne}`);
-                        }
-                    }
-                });
+        // 3. Rapports à préparer (Fin du mois)
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        addAlert(lastDay, 'rapport', 'Préparer les reportings mensuels');
 
-            } catch (e) {
-                console.error("Erreur de calcul des prévisions de trésorerie", e);
-            }
-
-            // 3. Rapports à préparer (Fin du mois)
-            const lastDay = new Date(year, month + 1, 0).getDate();
-            addAlert(lastDay, 'rapport', 'Préparer les reportings mensuels');
-
-            setAlerts(newAlerts);
-        };
-
-        fetchAlerts();
+        return newAlerts;
     }, [currentDate]);
 
     // Générer la grille des jours
-    useEffect(() => {
+    const days = useMemo(() => {
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
 
@@ -143,7 +137,7 @@ const MonthlyCalendarCard = () => {
             newDays.push(i);
         }
 
-        setDays(newDays);
+        return newDays;
     }, [currentDate]);
 
     const handlePrevMonth = () => {

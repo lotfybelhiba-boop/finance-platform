@@ -1,24 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, AlertTriangle, ShieldCheck, FileSearch, HelpCircle, CheckCircle } from 'lucide-react';
 import { getFactures, getClients } from '../services/storageService';
 
 const InvoiceAuditModal = ({ isOpen, onClose }) => {
-    if (!isOpen) return null;
-
-    const [factures, setFactures] = useState([]);
-    const [clients, setClients] = useState([]);
+    const factures = useMemo(() => isOpen ? getFactures() || [] : [], [isOpen]);
+    const clients = useMemo(() => isOpen ? getClients() || [] : [], [isOpen]);
 
     const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString());
     const [filterMonth, setFilterMonth] = useState('');
-
-    useEffect(() => {
-        try {
-            setFactures(getFactures() || []);
-            setClients(getClients() || []);
-        } catch (e) {
-            console.error("Error loading data for audit", e);
-        }
-    }, [isOpen]);
 
     const auditResults = useMemo(() => {
         const results = {
@@ -142,6 +131,8 @@ const InvoiceAuditModal = ({ isOpen, onClose }) => {
 
         return results;
     }, [factures, clients, filterYear, filterMonth]);
+
+    if (!isOpen) return null;
 
     const formatMonth = (ym) => {
         const parts = ym.split('-');
