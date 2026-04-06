@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, Calendar } from 'lucide-react';
 import { getBankTransactions, saveBankTransactions, getFactures, getClients, getStorage, setStorage } from '../services/storageService';
+import { generatePendingPersoCharges, PERSO_CATEGORIES } from '../utils/persoUtils';
 
 const BanquePage = () => {
     // Manual transactions
@@ -47,6 +48,7 @@ const BanquePage = () => {
 
     // Ignored Transactions History List
     const [ignoredTxs, setIgnoredTxs] = useState(() => getStorage('mynds_ignored_transactions', []));
+    const [showHistory, setShowHistory] = useState(false);
 
     // Écouteur de synchronisation multi-onglets
     useEffect(() => {
@@ -66,6 +68,13 @@ const BanquePage = () => {
     useEffect(() => {
         setStorage('mynds_ignored_transactions', ignoredTxs);
     }, [ignoredTxs]);
+
+    // Automations (Salaries + Perso)
+    useEffect(() => {
+        // En supposant que generatePendingSalaries est globalement disponible ou importé si besoin
+        // Ici on se concentre sur Perso
+        generatePendingPersoCharges();
+    }, []);
 
     useEffect(() => {
         saveBankTransactions(manualTransactions);
@@ -213,6 +222,26 @@ const BanquePage = () => {
             // Création d'une nouvelle transaction OU validation d'un draft (id n'existe pas encore dans manualTransactions)
             setManualTransactions([...manualTransactions, { ...t, id: Date.now() }]);
         }
+
+        // Si c'est une charge perso récurrente, l'ajouter à la config si c'est nouveau
+        if (t.category === 'Perso' && t.isRecurrent) {
+            const configs = getStorage('mynds_perso_config', []);
+            // Vérifier si une config similaire existe déjà (par nom/montant)
+            const exists = configs.some(c => c.name === t.desc && c.category === t.persoCategory);
+            if (!exists) {
+                const newConfig = {
+                    id: Date.now() + Math.floor(Math.random()*1000),
+                    name: t.desc,
+                    amount: t.amount,
+                    category: t.persoCategory,
+                    day: new Date(t.date).getDate(),
+                    bank: t.bank,
+                    active: true
+                };
+                setStorage('mynds_perso_config', [...configs, newConfig]);
+            }
+        }
+
         setIsModalOpen(false);
         setEditingTransaction(null);
     };
@@ -666,6 +695,30 @@ const BanquePage = () => {
                                 Total: {formatMoney(filteredTransactions.filter(t => !t.isIgnored).reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0))}
                             </div>
                         )}
+                        {activeTab === 'Charges Perso' && (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <div style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: '900' }}>
+                                    Somme : {formatMoney(filteredTransactions.filter(t => !t.isIgnored).reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0))}
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        const configs = getStorage('mynds_perso_config', []);
+                                        if (configs.length === 0) {
+                                            alert("Aucune charge récurrente définie. Ajoutez-en une via le bouton 'Ajouter' en cochant 'Récurrent'.");
+                                        } else {
+                                            const msg = configs.map(c => `- ${c.name} (${formatMoney(c.amount)})`).join('\n');
+                                            if (window.confirm("Charges récurrentes actuelles :\n" + msg + "\n\nVoulez-vous réinitialiser la liste ?")) {
+                                                setStorage('mynds_perso_config', []);
+                                                window.location.reload();
+                                            }
+                                        }
+                                    }}
+                                    style={{ background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-muted)', padding: '4px 10px', borderRadius: '8px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}
+                                >
+                                    Gérer le récurrent
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -858,27 +911,39 @@ const BanquePage = () => {
                                             </td>
                                             <td style={{ padding: '6px 4px', textAlign: 'center' }}>
                                                 <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', alignItems: 'center' }}>
-                                                    {t.isAuto ? (
-                                                        <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.3 }} title="Généré automatiquement (Lecture seule)">
-                                                            <Lock size={14} color="var(--text-muted)" />
-                                                        </div>
-                                                    ) : t.isDraft ? (
+                                                    {t.isDraft ? (
                                                         <button onClick={() => handleValidateDraft(t)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#d97706', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                                                             <Check size={12} strokeWidth={3} /> Valider
                                                         </button>
                                                     ) : (
                                                         <>
-                                                            <button onClick={() => handleEdit(t)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}>
-                                                                <MoreHorizontal size={14} />
-                                                            </button>
-                                                            <button onClick={() => handleDelete(t.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', opacity: 0.5 }}>
+                                                            {!t.isAuto && (
+                                                                <button onClick={() => handleEdit(t)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}>
+                                                                    <MoreHorizontal size={14} />
+                                                                </button>
+                                                            )}
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (t.isAuto) {
+                                                                        if (window.confirm("Cette transaction est automatique. L'ignorer définitivement ?")) {
+                                                                            toggleIgnore(t);
+                                                                        }
+                                                                    } else {
+                                                                        handleDelete(t.id);
+                                                                    }
+                                                                }} 
+                                                                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', opacity: 0.6 }}
+                                                                title={t.isAuto ? "Ignorer définitivement" : "Supprimer"}
+                                                            >
                                                                 <Trash2 size={14} />
                                                             </button>
                                                         </>
                                                     )}
-                                                    <button onClick={() => toggleIgnore(t)} title="Ignorer et masquer vers l'historique" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', marginLeft: '4px' }}>
-                                                        <EyeOff size={14} />
-                                                    </button>
+                                                    {!t.isAuto && (
+                                                        <button onClick={() => toggleIgnore(t)} title="Ignorer et masquer" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', marginLeft: '2px' }}>
+                                                            <EyeOff size={14} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -937,6 +1002,108 @@ const BanquePage = () => {
                 </div>
             </div>
 
+            {/* HISTORY / IGNORED TRANSACTIONS SECTION */}
+            <div style={{ marginTop: '40px', marginBottom: '60px' }}>
+                <button 
+                    onClick={() => setShowHistory(!showHistory)}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: 'transparent',
+                        border: '1px solid var(--border-color)',
+                        padding: '10px 20px',
+                        borderRadius: '12px',
+                        color: 'var(--text-muted)',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        margin: '0 auto'
+                    }}
+                >
+                    {showHistory ? <EyeOff size={16} /> : <Trash2 size={16} />}
+                    {showHistory ? 'Masquer l\'historique des suppressions' : `Voir l'historique des transactions masquées (${ignoredTxs.length})`}
+                </button>
+
+                {showHistory && (
+                    <div className="card" style={{ marginTop: '24px', padding: '24px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '24px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>Dernières Transactions Ignorées / Masquées</h3>
+                            {ignoredTxs.length > 0 && (
+                                <button 
+                                    onClick={() => {
+                                        if (window.confirm("Vider définitivement l'historique des suppressions ?")) {
+                                            setIgnoredTxs([]);
+                                        }
+                                    }}
+                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
+                                >
+                                    Tout effacer
+                                </button>
+                            )}
+                        </div>
+
+                        {ignoredTxs.length === 0 ? (
+                            <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                Aucun historique de suppression.
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                            <th style={{ textAlign: 'left', padding: '8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</th>
+                                            <th style={{ textAlign: 'left', padding: '8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Désignation</th>
+                                            <th style={{ textAlign: 'left', padding: '8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type</th>
+                                            <th style={{ textAlign: 'right', padding: '8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant</th>
+                                            <th style={{ textAlign: 'center', padding: '8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {[...ignoredTxs].sort((a,b) => new Date(b.date) - new Date(a.date)).map(t => (
+                                            <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', opacity: 0.7 }}>
+                                                <td style={{ padding: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>{t.date}</td>
+                                                <td style={{ padding: '8px', fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>{t.desc}</td>
+                                                <td style={{ padding: '8px', fontSize: '9px', fontWeight: '800', color: t.isAuto ? '#10b981' : '#3b82f6', textTransform: 'uppercase' }}>
+                                                    {t.isAuto ? 'Automatique' : 'Manuelle'}
+                                                </td>
+                                                <td style={{ padding: '8px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: 'var(--text-main)' }}>{formatMoney(t.amount)}</td>
+                                                <td style={{ padding: '8px', textAlign: 'center' }}>
+                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                        <button 
+                                                            onClick={() => toggleIgnore(t)}
+                                                            style={{ background: '#10b981', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}
+                                                            title="Restaurer vers le tableau principal"
+                                                        >
+                                                            Restaurer
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (window.confirm("Supprimer définitivement cet enregistrement de l'historique ?")) {
+                                                                    setIgnoredTxs(ignoredTxs.filter(item => item.id !== t.id));
+                                                                    // If manual, also purge from manualTransactions just in case it was still there
+                                                                    if (!t.isAuto) {
+                                                                        setManualTransactions(manualTransactions.filter(item => item.id !== t.id));
+                                                                    }
+                                                                }
+                                                            }}
+                                                            style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}
+                                                        >
+                                                            Purger
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
             {isModalOpen && (
                 <TransactionModal
                     isOpen={isModalOpen}
@@ -960,36 +1127,36 @@ const BanquePage = () => {
 };
 
 const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) => {
-    const defaultType = activeTab === 'Entrées' ? 'Credit' : 'Debit';
-    const defaultCategory = activeTab === 'Charges Perso' ? 'Perso' : (activeTab === 'Charges Mynds' ? 'Mynds Logistique' : 'Autre');
+    // 1. Logic for Contextual Appearance
+    const getModalContext = () => {
+        if (activeTab === 'Entrées') return { title: 'Nouvelle Entrée Cash', color: '#10b981', icon: <ArrowDownLeft size={20} />, defaultType: 'Credit' };
+        if (activeTab === 'Charges Perso') return { title: 'Dépense Personnelle', color: '#f59e0b', icon: <ArrowUpRight size={20} />, defaultType: 'Debit' };
+        return { title: 'Charge Mynds Team', color: '#ef4444', icon: <ArrowUpRight size={20} />, defaultType: 'Debit' };
+    };
 
+    const context = getModalContext();
+
+    // 2. State management
     const [formData, setFormData] = useState(transaction || {
         date: new Date().toISOString().split('T')[0],
         desc: '',
-        bank: 'BIAT',
-        type: defaultType,
+        bank: activeTab === 'Charges Perso' ? 'QNB' : 'BIAT',
+        type: context.defaultType,
         amount: 0,
-        category: defaultCategory,
+        category: activeTab === 'Charges Perso' ? 'Perso' : (activeTab === 'Charges Mynds' ? 'Mynds Logistique' : 'Autre'),
         chargeType: 'Exploitations',
         chargeNature: 'Variables',
         serviceMonth: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'),
-        paymentDate: new Date().toISOString().split('T')[0]
+        paymentDate: new Date().toISOString().split('T')[0],
+        persoCategory: 'Autre',
+        isRecurrent: false
     });
 
+    // 3. Category & Bank Logic
     const myndsCategories = [
-        'Mynds Logistique',
-        'Mynds Loyer Bureau',
-        'Mynds Technique',
-        'Mynds Banque',
-        'Mynds Internet',
-        'Mynds Logiciels',
-        'Mynds Fournitures',
-        'Mynds Charges sociales',
-        'Mynds Formation',
-        'Mynds Evenement',
-        'Mynds Comptable',
-        'Mynds Paperasse',
-        'Mynds Prime'
+        'Mynds Logistique', 'Mynds Loyer Bureau', 'Mynds Technique', 'Mynds Banque', 
+        'Mynds Internet', 'Mynds Logiciels', 'Mynds Fournitures', 'Mynds Charges sociales', 
+        'Mynds Formation', 'Mynds Evenement', 'Mynds Comptable', 'Mynds Paperasse', 'Mynds Prime', 'Charges'
     ];
 
     let availableCategories = [];
@@ -1001,22 +1168,16 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
         availableCategories = myndsCategories;
     }
 
-    // Preserve the transaction's category if it's not in the default lists for some reason
     if (transaction && !availableCategories.includes(transaction.category)) {
         availableCategories.push(transaction.category);
     }
-    const chargeTypes = ['Exploitations', 'RH'];
-    const chargeNatures = ['Variables', 'Fixes', 'Investissements'];
 
-    // Determine allowed banks based on category
     const getAllowedBanks = (cat) => {
         if (cat === 'Perso') return ['QNB', 'Espèces'];
-        return ['BIAT', 'QNB', 'Espèces']; // Mynds charges & Entry can use any
+        return ['BIAT', 'QNB', 'Espèces']; 
     };
 
     const allowedBanks = getAllowedBanks(formData.category);
-
-
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -1024,90 +1185,153 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
     };
 
     return (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={onClose}>
-            <div className="card" style={{ width: '100%', maxWidth: '440px', padding: '24px', position: 'relative', background: 'white', borderRadius: '24px' }} onClick={e => e.stopPropagation()}>
-                <h2 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '20px', color: 'var(--text-main)' }}>{transaction ? 'Modifier' : 'Ajouter'}</h2>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={onClose}>
+            <div className="card" style={{ width: '100%', maxWidth: '440px', padding: 0, position: 'relative', background: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }} onClick={e => e.stopPropagation()}>
+                
+                {/* Header Contextuel */}
+                <div style={{ padding: '20px 24px', background: `${context.color}10`, borderBottom: `1px dashed ${context.color}30`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ background: context.color, color: 'white', padding: '8px', borderRadius: '12px', display: 'flex' }}>
+                        {context.icon}
+                    </div>
+                    <div>
+                        <h2 style={{ fontSize: '16px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>{transaction ? 'Modifier' : context.title}</h2>
+                        <div style={{ fontSize: '10px', fontWeight: '700', color: context.color, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>
+                            {activeTab.replace('Charges ', '')} Dashboard Context
+                        </div>
+                    </div>
+                </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    
+                    {/* Section 1: Coeur de la transaction */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</label>
-                            <input type="date" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
+                            <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Date Valeur</label>
+                            <input type="date" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600', outline: 'none', transition: 'border-color 0.2s' }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Catégorie</label>
+                            <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Catégorie</label>
                             <select value={formData.category} onChange={e => {
                                 const newCat = e.target.value;
-                                const newAllowedBanks = getAllowedBanks(newCat);
+                                const newBanks = getAllowedBanks(newCat);
                                 setFormData(prev => ({
                                     ...prev,
                                     category: newCat,
-                                    bank: newAllowedBanks.includes(prev.bank) ? prev.bank : newAllowedBanks[0]
+                                    bank: newBanks.includes(prev.bank) ? prev.bank : newBanks[0]
                                 }));
-                            }} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }}>
+                            }} style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600', outline: 'none' }}>
                                 {availableCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                             </select>
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Désignation</label>
-                        <input type="text" required placeholder="Ex: Loyer, Adobe, Salaire..." value={formData.desc} onChange={e => setFormData({ ...formData, desc: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
+                        <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Désignation / Note</label>
+                        <input type="text" required placeholder="Ex: Paiement Loyer Mars, Facture Internet..." value={formData.desc} onChange={e => setFormData({ ...formData, desc: e.target.value })} style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600', outline: 'none' }} />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mois de Service</label>
-                            <input type="month" required value={formData.serviceMonth} onChange={e => setFormData({ ...formData, serviceMonth: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date de Paiement</label>
-                            <input type="date" required value={formData.paymentDate} onChange={e => setFormData({ ...formData, paymentDate: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px' }} />
-                        </div>
-                    </div>
-
-                    {/* NEW FIELDS FOR CHARGES */}
-                    {formData.category === 'Charges' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: 'var(--bg-main)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type</label>
-                                <select value={formData.chargeType} onChange={e => setFormData({ ...formData, chargeType: e.target.value })} style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
-                                    {chargeTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
+                    {/* Section 2: Contexte Financier Pro ou Perso */}
+                    {activeTab === 'Charges Mynds' && (
+                        <div style={{ padding: '14px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type de Charge</label>
+                                    <select value={formData.chargeType} onChange={e => setFormData({ ...formData, chargeType: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '12px', fontWeight: '600' }}>
+                                        <option value="Exploitations">Exploitations</option>
+                                        <option value="RH">RH / Salaires</option>
+                                    </select>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nature</label>
+                                    <select value={formData.chargeNature} onChange={e => setFormData({ ...formData, chargeNature: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '12px', fontWeight: '600' }}>
+                                        <option value="Variables">Variables</option>
+                                        <option value="Fixes">Fixes</option>
+                                        <option value="Investissements">Investissements</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Nature</label>
-                                <select value={formData.chargeNature} onChange={e => setFormData({ ...formData, chargeNature: e.target.value })} style={{ padding: '6px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px' }}>
-                                    {chargeNatures.map(n => <option key={n} value={n}>{n}</option>)}
-                                </select>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mois de Service</label>
+                                    <input type="month" required value={formData.serviceMonth} onChange={e => setFormData({ ...formData, serviceMonth: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '12px', fontWeight: '600' }} />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date Paym.</label>
+                                    <input type="date" required value={formData.paymentDate} onChange={e => setFormData({ ...formData, paymentDate: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '12px', fontWeight: '600' }} />
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    {activeTab === 'Charges Perso' && (
+                        <div style={{ padding: '14px', background: `${context.color}08`, borderRadius: '16px', border: `1px solid ${context.color}30`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontSize: '9px', fontWeight: '800', color: context.color, textTransform: 'uppercase' }}>Sous-Catégorie Personnelle</label>
+                                <select value={formData.persoCategory} onChange={e => setFormData({ ...formData, persoCategory: e.target.value })} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${context.color}30`, fontSize: '13px', fontWeight: '600', outline: 'none' }}>
+                                    {PERSO_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                </select>
+                            </div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', padding: '4px' }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={formData.isRecurrent} 
+                                    onChange={e => setFormData({ ...formData, isRecurrent: e.target.checked })}
+                                    style={{ width: '18px', height: '18px', accentColor: context.color }}
+                                />
+                                Définir comme dépense récurrente
+                            </label>
+                        </div>
+                    )}
+
+                    {/* Section 3: Infos Financières Finales */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Banque</label>
-                            <select value={formData.bank} onChange={e => setFormData({ ...formData, bank: e.target.value })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600' }}>
+                            <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Compte Bancaire</label>
+                            <select value={formData.bank} onChange={e => setFormData({ ...formData, bank: e.target.value })} style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '800', outline: 'none' }}>
                                 {allowedBanks.map(b => <option key={b} value={b}>{b}</option>)}
                             </select>
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant (TND)</label>
-                            <input type="number" step="0.001" required value={formData.amount} onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} style={{ padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', fontSize: '14px', fontWeight: '800', textAlign: 'right' }} />
+                            <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Montant Net (TND)</label>
+                            <div style={{ position: 'relative' }}>
+                                <input 
+                                    type="number" 
+                                    step="0.001" 
+                                    required 
+                                    autoFocus
+                                    value={formData.amount || ''} 
+                                    onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} 
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: `2px solid ${context.color}40`, fontSize: '16px', fontWeight: '900', textAlign: 'right', outline: 'none', background: `${context.color}05` }} 
+                                />
+                                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', fontWeight: '900', color: context.color }}>TND</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Type de Flux</label>
-                        <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-main)', padding: '4px', borderRadius: '10px' }}>
-                            <button type="button" onClick={() => setFormData({ ...formData, type: 'Credit' })} style={{ flex: 1, padding: '6px', borderRadius: '8px', border: 'none', background: formData.type === 'Credit' ? '#10b981' : 'transparent', color: formData.type === 'Credit' ? 'white' : 'var(--text-muted)', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}>ENTRÉE (+)</button>
-                            <button type="button" onClick={() => setFormData({ ...formData, type: 'Debit' })} style={{ flex: 1, padding: '6px', borderRadius: '8px', border: 'none', background: formData.type === 'Debit' ? 'var(--text-main)' : 'transparent', color: formData.type === 'Debit' ? 'white' : 'var(--text-muted)', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}>SORTIE (-)</button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                        <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Sens de l'opération</label>
+                        <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-main)', padding: '6px', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
+                            <button 
+                                type="button" 
+                                onClick={() => setFormData({ ...formData, type: 'Credit' })} 
+                                style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', background: formData.type === 'Credit' ? '#10b981' : 'transparent', color: formData.type === 'Credit' ? 'white' : 'var(--text-muted)', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                <ArrowDownLeft size={14} /> ENTRÉE (+)
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={() => setFormData({ ...formData, type: 'Debit' })} 
+                                style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', background: formData.type === 'Debit' ? 'var(--text-main)' : 'transparent', color: formData.type === 'Debit' ? 'white' : 'var(--text-muted)', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                                <ArrowUpRight size={14} /> SORTIE (-)
+                            </button>
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                        <button type="button" onClick={onClose} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'transparent', fontWeight: '700', cursor: 'pointer', fontSize: '13px' }}>Annuler</button>
-                        <button type="submit" style={{ flex: 1.5, padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--text-main)', color: 'white', fontWeight: '700', cursor: 'pointer', fontSize: '13px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>Enregistrer</button>
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                        <button type="button" onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-muted)', fontWeight: '800', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}>Annuler</button>
+                        <button type="submit" style={{ flex: 1.5, padding: '12px', borderRadius: '12px', border: 'none', background: 'var(--text-main)', color: 'white', fontWeight: '900', cursor: 'pointer', fontSize: '14px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', transition: 'all 0.2s' }}>Confirmer & Sauver</button>
                     </div>
                 </form>
             </div>
