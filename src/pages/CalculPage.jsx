@@ -15,11 +15,11 @@ const CalculPage = () => {
     const [dureeAffichage, setDureeAffichage] = useState('1 mois');
     const [dateDebut, setDateDebut] = useState('');
     const [dateFin, setDateFin] = useState('');
-    const [monthlyCosts, setMonthlyCosts] = useState([
-        { id: Date.now() + 1, type: 'RH', name: '', montant: '' },
-        { id: Date.now() + 2, type: 'Pub', name: '', montant: '' },
-        { id: Date.now() + 3, type: 'Mng', name: '', montant: '' },
-        { id: Date.now() + 4, type: 'Abonnement Logiciel', name: '', montant: '' }
+    const [monthlyCosts, setMonthlyCosts] = useState(() => [
+        { id: 'initial-rh', type: 'RH', name: '', montant: '' },
+        { id: 'initial-pub', type: 'Pub', name: '', montant: '' },
+        { id: 'initial-mng', type: 'Mng', name: '', montant: '' },
+        { id: 'initial-logiciel', type: 'Abonnement Logiciel', name: '', montant: '' }
     ]);
 
     // === STATE: SAVED PROJECTS ===
@@ -29,11 +29,11 @@ const CalculPage = () => {
     const [clientsDatalist, setClientsDatalist] = useState([]);
 
     // === STATE: PERSONAL EXPENSES ===
-    const [personalCosts, setPersonalCosts] = useState([
-        { id: Date.now() + 10, desc: 'Loyer Personnel', montant: '' },
-        { id: Date.now() + 11, desc: 'Nourriture & Courses', montant: '' },
-        { id: Date.now() + 12, desc: 'Transport / Carburant', montant: '' },
-        { id: Date.now() + 13, desc: 'Factures (Électricité, Eau, Internet perso)', montant: '' },
+    const [personalCosts, setPersonalCosts] = useState(() => [
+        { id: 'perso-loyer', desc: 'Loyer Personnel', montant: '' },
+        { id: 'perso-nourriture', desc: 'Nourriture & Courses', montant: '' },
+        { id: 'perso-transport', desc: 'Transport / Carburant', montant: '' },
+        { id: 'perso-factures', desc: 'Factures (Électricité, Eau, Internet perso)', montant: '' },
     ]);
 
     // Load from local storage on mount
@@ -202,10 +202,10 @@ const CalculPage = () => {
         setDateDebut('');
         setDateFin('');
         setMonthlyCosts([
-            { id: Date.now() + 1, type: 'RH', name: '', montant: '' },
-            { id: Date.now() + 2, type: 'Pub', name: '', montant: '' },
-            { id: Date.now() + 3, type: 'Mng', name: '', montant: '' },
-            { id: Date.now() + 4, type: 'Abonnement Logiciel', name: '', montant: '' }
+            { id: 'initial-rh-' + Date.now(), type: 'RH', name: '', montant: '' },
+            { id: 'initial-pub-' + Date.now(), type: 'Pub', name: '', montant: '' },
+            { id: 'initial-mng-' + Date.now(), type: 'Mng', name: '', montant: '' },
+            { id: 'initial-logiciel-' + Date.now(), type: 'Abonnement Logiciel', name: '', montant: '' }
         ]);
 
         // Redirect to Finance page

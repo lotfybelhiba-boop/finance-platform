@@ -9,9 +9,10 @@ const RapportsPage = () => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState('all'); // 'all' ou 0-11
     const [selectedClient, setSelectedClient] = useState('all'); // 'all' ou client.enseigne
-    const [factures, setFactures] = useState([]);
-    const [transactions, setTransactions] = useState([]);
-    const [clients, setClients] = useState([]);
+    
+    const [factures, setFactures] = useState(() => getFactures());
+    const [transactions, setTransactions] = useState(() => getBankTransactions());
+    const [clients, setClients] = useState(() => getClients());
 
     // Configuration de l'agence (statique pour l'impression officielle)
     const agenceInfo = {
@@ -23,9 +24,13 @@ const RapportsPage = () => {
     };
 
     useEffect(() => {
-        setTransactions(getBankTransactions());
-        setFactures(getFactures());
-        setClients(getClients());
+        const handleStorage = () => {
+            setTransactions(getBankTransactions());
+            setFactures(getFactures());
+            setClients(getClients());
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
     const handlePrint = () => {
@@ -592,4 +597,3 @@ const RapportsPage = () => {
 };
 
 export default RapportsPage;
-

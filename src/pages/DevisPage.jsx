@@ -106,11 +106,14 @@ const DevisPage = () => {
                 </table>
             </div>
 
-            <DevisModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onSave={handleSaveDevis}
-            />
+            {isModalOpen && (
+                <DevisModal
+                    key="new-devis"
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSave={handleSaveDevis}
+                />
+            )}
         </div>
     );
 };

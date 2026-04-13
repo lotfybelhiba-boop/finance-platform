@@ -63,11 +63,6 @@ function App() {
     setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('mynds_auth_token');
-    setIsAuthenticated(false);
-  };
-
   if (!isAuthenticated) {
     return (
       <ErrorBoundary>

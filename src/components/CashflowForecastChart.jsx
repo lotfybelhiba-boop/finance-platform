@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ComposedChart, Bar } from 'recharts';
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
@@ -123,22 +123,6 @@ const CashflowForecastChart = ({ totalBankBalance = 0, factures = [], bankTransa
 
         return { timeline, lowestBalance };
     }, [totalBankBalance, factures, bankTransactions, daysToProject]);
-
-    // Gradient thresholds (if drops below zero, turn red, else primary blue/green)
-    const getGradientColors = () => {
-        if (data.lowestBalance < 0) {
-            return {
-                stroke: "url(#colorNegative)",
-                fill: "url(#colorNegativeFill)"
-            };
-        }
-        return {
-            stroke: "url(#colorPositive)",
-            fill: "url(#colorPositiveFill)"
-        };
-    };
-
-    const gradientConfig = getGradientColors();
 
     const formatShortYAxis = (val) => {
         if (val >= 1000 || val <= -1000) return `${(val / 1000).toFixed(1)}k`;

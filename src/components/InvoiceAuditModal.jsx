@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { X, AlertTriangle, ShieldCheck, FileSearch, HelpCircle, CheckCircle } from 'lucide-react';
 import { getFactures, getClients } from '../services/storageService';
 
-const InvoiceAuditModal = ({ isOpen, onClose }) => {
+const InvoiceAuditModal = ({ isOpen, onClose, onRestoreAlert }) => {
     const factures = useMemo(() => isOpen ? getFactures() || [] : [], [isOpen]);
     const clients = useMemo(() => isOpen ? getClients() || [] : [], [isOpen]);
 
@@ -129,6 +129,35 @@ const InvoiceAuditModal = ({ isOpen, onClose }) => {
             }
         });
 
+        // --- 4. Alertes Ignorées (Traçabilité) ---
+        const ignoredData = [];
+        try {
+            // Tentative de récupération via la clé brute ou préfixée
+            const raw = localStorage.getItem('mynds_storage_mynds_ignored_alerts') || localStorage.getItem('mynds_ignored_alerts');
+            let storedIgnored = [];
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                storedIgnored = parsed.data || (Array.isArray(parsed) ? parsed : []);
+            }
+
+            storedIgnored.forEach(item => {
+                const key = typeof item === 'string' ? item : item.key;
+                if (key) {
+                    const parts = key.split('-');
+                    const y = parts[parts.length - 1];
+                    const m = parts[parts.length - 2];
+                    
+                    if (filterYear !== 'All' && y !== filterYear) return;
+                    if (filterMonth && (parseInt(m) + 1) !== parseInt(filterMonth)) return;
+                    
+                    ignoredData.push(typeof item === 'string' ? { key: item, reason: 'Ignoré (Ancienne version)', date: null, client: parts[0], period: `${m}/${y}` } : item);
+                }
+            });
+        } catch (e) {
+            console.error("Audit error reading ignored alerts:", e);
+        }
+        results.ignoredAlerts = ignoredData;
+
         return results;
     }, [factures, clients, filterYear, filterMonth]);
 
@@ -141,139 +170,247 @@ const InvoiceAuditModal = ({ isOpen, onClose }) => {
         return `${monthNames[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
     };
 
-    const hasNoIssues = auditResults.monthlyGaps.length === 0 && auditResults.globalNumbering.length === 0 && auditResults.clientNumbering.length === 0;
+    const hasNoIssues = auditResults.monthlyGaps.length === 0 && 
+                       auditResults.globalNumbering.length === 0 && 
+                       auditResults.clientNumbering.length === 0 &&
+                       auditResults.ignoredAlerts.length === 0;
 
     return (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ width: '100%', maxWidth: '800px', background: 'var(--card-bg)', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(2, 6, 23, 0.85)', backdropFilter: 'blur(16px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ 
+                width: '100%', maxWidth: '900px', 
+                background: 'rgba(30, 41, 59, 0.4)', 
+                borderRadius: '32px', 
+                border: '1px solid rgba(255, 193, 5, 0.2)',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', 
+                overflow: 'hidden', 
+                display: 'flex', flexDirection: 'column', 
+                maxHeight: '92vh',
+                color: '#F8FAFC'
+            }}>
                 
                 {/* HEADER */}
-                <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-main)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255, 193, 5, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-gold)' }}>
-                            <FileSearch size={24} />
+                <div style={{ 
+                    padding: '32px 40px', 
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                    background: 'rgba(15, 23, 42, 0.4)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{ 
+                            width: '56px', height: '56px', borderRadius: '16px', 
+                            background: 'linear-gradient(135deg, var(--accent-gold), #B45309)', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000',
+                            boxShadow: '0 8px 20px rgba(255, 193, 5, 0.2)'
+                        }}>
+                            <FileSearch size={28} />
                         </div>
                         <div>
-                            <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>Fiabilité & Diagnostic Factures</h2>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <ShieldCheck size={14} color="#10B981" /> 
-                                Analyse Read-Only. Aucune facture n'est modifiée ou altérée.
+                            <h2 style={{ fontSize: '24px', fontWeight: '900', color: '#FFFFFF', margin: 0, letterSpacing: '-0.5px' }}>Diagnostic Haute Fidélité</h2>
+                            <p style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <ShieldCheck size={14} color="var(--accent-gold)" /> 
+                                Analyse temps réel des flux de facturation & intégrité
                             </p>
                         </div>
                     </div>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '8px', borderRadius: '50%', transition: 'all 0.2s', ':hover': { background: 'rgba(0,0,0,0.05)' } }}>
-                        <X size={24} />
+                    <button 
+                        onClick={onClose} 
+                        style={{ 
+                            background: 'rgba(255, 255, 255, 0.05)', border: 'none', color: '#FFF', 
+                            cursor: 'pointer', width: '40px', height: '40px', borderRadius: '12px', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                    >
+                        <X size={20} />
                     </button>
                 </div>
 
-                {/* FILTRES */}
-                <div style={{ padding: '16px 32px', borderBottom: '1px solid var(--border-color)', background: 'var(--card-bg)', display: 'flex', gap: '16px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-muted)' }}>Filtrer l'audit :</span>
-                    
-                    <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', outline: 'none' }}>
-                        <option value="All">Toutes les années</option>
-                        <option value="2024">2024</option>
-                        <option value="2025">2025</option>
-                        <option value="2026">2026</option>
-                        <option value="2027">2027</option>
-                    </select>
-
-                    <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '13px', fontWeight: '600', color: 'var(--text-main)', outline: 'none' }}>
-                        <option value="">Tous les mois</option>
-                        {Array.from({length: 12}, (_, i) => i + 1).map(m => {
-                            const monthName = new Date(2000, m - 1).toLocaleString('fr-FR', { month: 'long' });
-                            return <option key={m} value={m}>{monthName.charAt(0).toUpperCase() + monthName.slice(1)}</option>;
-                        })}
-                    </select>
+                {/* FILTRES LUXE */}
+                <div style={{ padding: '20px 40px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(15, 23, 42, 0.2)', display: 'flex', gap: '24px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: 'rgba(255, 255, 255, 0.4)', textTransform: 'uppercase', letterSpacing: '1px' }}>Période d'audit :</span>
+                        <select 
+                            value={filterYear} 
+                            onChange={e => setFilterYear(e.target.value)} 
+                            style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)', background: '#0F172A', fontSize: '13px', fontWeight: '700', color: '#FFF', outline: 'none', cursor: 'pointer' }}
+                        >
+                            <option value="All">Toutes les années</option>
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                        </select>
+                        <select 
+                            value={filterMonth} 
+                            onChange={e => setFilterMonth(e.target.value)} 
+                            style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)', background: '#0F172A', fontSize: '13px', fontWeight: '700', color: '#FFF', outline: 'none', cursor: 'pointer' }}
+                        >
+                            <option value="">Tous les mois</option>
+                            {Array.from({length: 12}, (_, i) => i + 1).map(m => {
+                                const monthName = new Date(2000, m - 1).toLocaleString('fr-FR', { month: 'long' });
+                                return <option key={m} value={m}>{monthName.charAt(0).toUpperCase() + monthName.slice(1)}</option>;
+                            })}
+                        </select>
+                    </div>
                 </div>
 
                 {/* BODY */}
-                <div style={{ padding: '32px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                <div style={{ padding: '40px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '40px' }}>
                     
                     {hasNoIssues ? (
-                        <div style={{ textAlign: 'center', padding: '60px 20px', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '16px', border: '1px dashed rgba(16, 185, 129, 0.3)' }}>
-                            <CheckCircle size={48} color="#10B981" style={{ margin: '0 auto 16px auto' }} />
-                            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)', margin: '0 0 8px 0' }}>Aucune anomalie détectée !</h3>
-                            <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0, maxWidth: '400px', display: 'inline-block' }}>Toutes les périodes d'abonnement sont facturées et la numérotation suit une séquence parfaite.</p>
+                        <div style={{ textAlign: 'center', padding: '80px 40px', background: 'rgba(255, 193, 5, 0.02)', borderRadius: '32px', border: '1px dashed rgba(255, 193, 5, 0.15)' }}>
+                            <div style={{ 
+                                width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(255, 193, 5, 0.1)', 
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-gold)',
+                                margin: '0 auto 24px auto'
+                            }}>
+                                <ShieldCheck size={40} />
+                            </div>
+                            <h3 style={{ fontSize: '24px', fontWeight: '900', color: '#FFF', margin: '0 0 12px 0' }}>Gestion Impeccable</h3>
+                            <p style={{ fontSize: '15px', color: 'rgba(255, 255, 255, 0.5)', margin: 0, maxWidth: '450px', display: 'inline-block', lineHeight: '1.6' }}>
+                                Aucune anomalie détectée sur la période sélectionnée. Votre structure de facturation est saine.
+                            </p>
                         </div>
                     ) : (
                         <>
                             {/* SECTION 1: MENSUALITÉS OUBLIÉES */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '2px solid var(--border-color)', paddingBottom: '12px' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EF4444' }}>
-                                        <AlertTriangle size={18} />
-                                    </div>
-                                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>Oublis de Facturation (Abonnements)</h3>
-                                    <span style={{ fontSize: '12px', fontWeight: '800', background: 'var(--danger)', color: 'white', padding: '2px 8px', borderRadius: '100px', marginLeft: 'auto' }}>
-                                        {auditResults.monthlyGaps.length}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <div style={{ width: '3px', height: '24px', background: '#EF4444', borderRadius: '4px' }}></div>
+                                    <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#FFF', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>Oublis de Facturation</h3>
+                                    <span style={{ fontSize: '11px', fontWeight: '900', background: '#EF4444', color: 'white', padding: '4px 12px', borderRadius: '100px', marginLeft: 'auto' }}>
+                                        {auditResults.monthlyGaps.length} ALERTE{auditResults.monthlyGaps.length > 1 ? 'S' : ''}
                                     </span>
                                 </div>
                                 {auditResults.monthlyGaps.length > 0 ? (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
                                         {auditResults.monthlyGaps.map((gap, idx) => (
-                                            <div key={idx} style={{ background: 'var(--bg-main)', border: '1px solid rgba(239, 68, 68, 0.2)', borderLeft: '3px solid #EF4444', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>{gap.client}</span>
-                                                <span style={{ fontSize: '12px', fontWeight: '600', color: '#EF4444', background: 'white', padding: '4px 8px', borderRadius: '6px' }}>{formatMonth(gap.month)}</span>
+                                            <div key={idx} style={{ 
+                                                background: 'rgba(255, 255, 255, 0.03)', 
+                                                border: '1px solid rgba(255, 255, 255, 0.05)', 
+                                                borderRadius: '20px', padding: '20px',
+                                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                                            }}>
+                                                <div style={{ fontSize: '14px', fontWeight: '800', color: '#FFF', marginBottom: '12px' }}>{gap.client}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <AlertTriangle size={14} color="#EF4444" />
+                                                    <span style={{ fontSize: '12px', fontWeight: '600', color: '#EF4444' }}>{formatMonth(gap.month)}</span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 ) : (
-                                    <div style={{ fontSize: '13px', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}><CheckCircle size={16} /> Aucune mensualité oubliée détectée.</div>
+                                    <div style={{ fontSize: '13px', color: '#10B981', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '600', background: 'rgba(16, 185, 129, 0.05)', padding: '12px 20px', borderRadius: '16px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                                        <CheckCircle size={16} /> Aucune mensualité oubliée sur cette période.
+                                    </div>
                                 )}
                             </div>
 
-                            {/* SECTION 2: NUMÉROTATION GLOBALE */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '2px solid var(--border-color)', paddingBottom: '12px' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#F59E0B' }}>
-                                        <AlertTriangle size={18} />
-                                    </div>
-                                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>Sauts de Numérotation Globale</h3>
-                                    <span style={{ fontSize: '12px', fontWeight: '800', background: auditResults.globalNumbering.length > 0 ? '#F59E0B' : 'var(--text-muted)', color: 'white', padding: '2px 8px', borderRadius: '100px', marginLeft: 'auto' }}>
-                                        {auditResults.globalNumbering.length}
+                            {/* SECTION 4: ALERTES IGNORÉES */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <div style={{ width: '3px', height: '24px', background: 'var(--accent-gold)', borderRadius: '4px' }}></div>
+                                    <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#FFF', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>Flux Ignorés (Traçabilité)</h3>
+                                    <span style={{ fontSize: '11px', fontWeight: '900', background: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.6)', padding: '4px 12px', borderRadius: '100px', marginLeft: 'auto' }}>
+                                        {auditResults.ignoredAlerts.length} RÉTABLISSEMENT POSSIBLE
                                     </span>
                                 </div>
-                                {auditResults.globalNumbering.length > 0 ? (
-                                    <ul style={{ margin: 0, padding: '0 0 0 24px', color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {auditResults.globalNumbering.map((issue, idx) => (
-                                            <li key={idx}><strong>{issue}</strong> (Brouillon supprimé ou numéro modifié)</li>
+                                {auditResults.ignoredAlerts.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {auditResults.ignoredAlerts.map((item, idx) => (
+                                            <div key={idx} style={{ 
+                                                background: 'rgba(255, 255, 255, 0.03)', 
+                                                border: '1px solid rgba(255, 255, 255, 0.05)', 
+                                                borderRadius: '24px', padding: '20px 24px',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                            }}>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                                        <span style={{ fontSize: '15px', fontWeight: '800', color: '#FFF' }}>{item.client}</span>
+                                                        <span style={{ fontSize: '11px', color: 'var(--accent-gold)', fontWeight: '700', background: 'rgba(255,193,5,0.1)', padding: '2px 8px', borderRadius: '6px' }}>{item.period}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)', fontStyle: 'italic' }}>
+                                                       " {item.reason} "
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                                    <button 
+                                                        onClick={() => onRestoreAlert && onRestoreAlert(item.key)}
+                                                        style={{ 
+                                                            padding: '8px 16px', borderRadius: '12px', 
+                                                            border: 'none', background: 'var(--accent-gold)', color: '#000', 
+                                                            fontSize: '11px', fontWeight: '800', cursor: 'pointer',
+                                                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            boxShadow: '0 4px 12px rgba(255, 193, 5, 0.1)'
+                                                        }}
+                                                        onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(255, 193, 5, 0.2)'; }}
+                                                        onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 193, 5, 0.1)'; }}
+                                                    >
+                                                        Rétablir le rappel
+                                                    </button>
+                                                    <span style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.3)' }}>{item.date ? `Ignoré le ${new Date(item.date).toLocaleDateString('fr-FR')}` : 'Action passée'}</span>
+                                                </div>
+                                            </div>
                                         ))}
-                                    </ul>
+                                    </div>
                                 ) : (
-                                    <div style={{ fontSize: '13px', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}><CheckCircle size={16} /> Séquence globale complète.</div>
+                                    <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.3)', display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', borderRadius: '24px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.05)' }}>
+                                        <HelpCircle size={16} /> Aucun historique d'omission ignorée sur cette période.
+                                    </div>
                                 )}
                             </div>
 
-                            {/* SECTION 3: NUMÉROTATION CLIENT */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '2px solid var(--border-color)', paddingBottom: '12px' }}>
-                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3B82F6' }}>
-                                        <AlertTriangle size={18} />
-                                    </div>
-                                    <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>Sauts de Numérotation Client</h3>
-                                    <span style={{ fontSize: '12px', fontWeight: '800', background: auditResults.clientNumbering.length > 0 ? '#3B82F6' : 'var(--text-muted)', color: 'white', padding: '2px 8px', borderRadius: '100px', marginLeft: 'auto' }}>
-                                        {auditResults.clientNumbering.length}
-                                    </span>
+                            {/* SECTION 2 & 3: NUMÉROTATION (Condensée) */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <h3 style={{ fontSize: '12px', fontWeight: '800', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '1px' }}>Numérotation Globale</h3>
+                                    {auditResults.globalNumbering.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {auditResults.globalNumbering.map((issue, idx) => (
+                                                <div key={idx} style={{ fontSize: '12px', color: '#F59E0B', background: 'rgba(245, 158, 11, 0.05)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>{issue}</div>
+                                            ))}
+                                        </div>
+                                    ) : <div style={{ fontSize: '12px', color: '#10B981', fontWeight: '600' }}>✓ Séquence parfaite</div>}
                                 </div>
-                                {auditResults.clientNumbering.length > 0 ? (
-                                    <ul style={{ margin: 0, padding: '0 0 0 24px', color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {auditResults.clientNumbering.map((issue, idx) => (
-                                            <li key={idx}><strong>{issue}</strong></li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div style={{ fontSize: '13px', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}><CheckCircle size={16} /> Séquence client complète.</div>
-                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <h3 style={{ fontSize: '12px', fontWeight: '800', color: 'rgba(255, 255, 255, 0.5)', textTransform: 'uppercase', letterSpacing: '1px' }}>Numérotation Client</h3>
+                                    {auditResults.clientNumbering.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {auditResults.clientNumbering.map((issue, idx) => (
+                                                <div key={idx} style={{ fontSize: '12px', color: '#3B82F6', background: 'rgba(59, 130, 246, 0.05)', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>{issue}</div>
+                                            ))}
+                                        </div>
+                                    ) : <div style={{ fontSize: '12px', color: '#10B981', fontWeight: '600' }}>✓ Séquence parfaite</div>}
+                                </div>
                             </div>
                         </>
                     )}
                 </div>
 
                 {/* FOOTER */}
-                <div style={{ padding: '24px 32px', borderTop: '1px solid var(--border-color)', background: 'var(--bg-main)', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button onClick={onClose} style={{ padding: '12px 24px', borderRadius: '12px', border: 'none', background: 'var(--text-main)', color: 'white', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
-                        Fermer le diagnostic
+                <div style={{ padding: '32px 40px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', background: 'rgba(15, 23, 42, 0.4)', display: 'flex', justifyContent: 'flex-end', gap: '16px' }}>
+                    <button 
+                        onClick={onClose} 
+                        style={{ 
+                            padding: '12px 32px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.1)', 
+                            background: 'transparent', color: '#FFF', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' 
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        Quitter l'espace Audit
+                    </button>
+                    <button 
+                        onClick={onClose} 
+                        style={{ 
+                            padding: '12px 32px', borderRadius: '16px', border: 'none', 
+                            background: 'var(--accent-gold)', color: '#000', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s',
+                            boxShadow: '0 8px 20px rgba(255, 193, 5, 0.2)'
+                        }}
+                    >
+                        Terminer
                     </button>
                 </div>
             </div>

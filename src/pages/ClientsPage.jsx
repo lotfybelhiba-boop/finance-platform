@@ -86,7 +86,7 @@ const defaultDummyClients = [
         mf: '9876543/B/B/N/111',
         mail: 'ahmed@techcorp.tn',
         telephone: '28 123 456',
-        adresse: 'Centre Urbain Nord, Tunis',
+        adresse: '136 Ave de la liberté, Tunis',
         regime: 'Abonnement',
         montantMensuel: 2000,
         jourPaiement: 1, // Start of month, will trigger black dot if no invoice
@@ -209,7 +209,7 @@ const ClientsPage = () => {
         saveClients(clients);
     }, [clients]);
 
-    const [viewMode, setViewMode] = useState('cards'); // 'cards' ou 'table'
+    const [viewMode, setViewMode] = useState('table'); // Default to 'table' (list) instead of 'cards'
     const [editingClient, setEditingClient] = useState(null);
     const fileInputRef = React.useRef(null);
 

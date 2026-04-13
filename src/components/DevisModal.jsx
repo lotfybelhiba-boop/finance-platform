@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, FileDown } from 'lucide-react';
 import { generateDocumentPDF } from '../utils/pdfGenerator.jsx';
 import { loadConfig, initialServices } from '../data/defaultConfig';
@@ -18,13 +18,7 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedServiceId, setSelectedServiceId] = useState('');
 
-    const [servicesList, setServicesList] = useState([]);
-
-    useEffect(() => {
-        if (isOpen) {
-            setServicesList(loadConfig('services', initialServices));
-        }
-    }, [isOpen]);
+    const servicesList = useMemo(() => loadConfig('services', initialServices), []);
 
     const clients = ['Future Corp', 'Green Energy', 'Tech Build', 'Local Shop'];
 
@@ -35,7 +29,7 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
 
     const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(val);
 
-    const handleAddLigne = () => setLignes([...lignes, { id: Date.now(), desc: '', qte: 1, prix: 0 }]);
+    const handleAddLigne = () => setLignes([...lignes, { id: 'ligne-' + Date.now(), desc: '', qte: 1, prix: 0 }]);
     const handleRemoveLigne = (id) => setLignes(lignes.filter(l => l.id !== id));
 
     const updateLigne = (id, field, value) => {
@@ -54,10 +48,11 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
         }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = React.useCallback((e) => {
         e.preventDefault();
+        const timestampSuffix = Date.now().toString().slice(-3);
         onSave({
-            id: `DEV-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+            id: `DEV-${new Date().getFullYear()}-${(lignes.length + parseInt(timestampSuffix)).toString().padStart(3, '0')}`,
             client,
             montant: totalTTC,
             date: dateEmi,
@@ -71,12 +66,12 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
             conditions
         });
         onClose();
-    };
+    }, [client, conditions, dateEmi, lignes.length, notes, onClose, onSave, statut, timbre, tva, totalTTC, sousTotalHT, validite]);
 
     const handleDownloadPDF = (e) => {
         e.preventDefault();
         const currentData = {
-            id: `DEV-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+            id: `DEV-${new Date().getFullYear()}-${(lignes.length + 1).toString().padStart(3, '0')}`,
             client,
             montant: totalTTC,
             date: dateEmi,
@@ -173,7 +168,7 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
                                         onClick={() => {
                                             const srv = servicesList.find(s => s.id === selectedServiceId);
                                             if (srv) {
-                                                setLignes([...lignes, { id: Date.now(), desc: srv.nom, qte: 1, prix: srv.prix }]);
+                                                setLignes([...lignes, { id: 'srv-' + Date.now(), desc: srv.nom, qte: 1, prix: srv.prix }]);
                                                 setSelectedServiceId('');
                                             }
                                         }}

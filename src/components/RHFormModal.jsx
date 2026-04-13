@@ -1,31 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, UserPlus, Save, Briefcase, Calendar, Percent, ListTodo, User } from 'lucide-react';
 
-const RHFormModal = ({ isOpen, onClose, onSave, initialData, projetsDisponibles }) => {
-    const [formData, setFormData] = useState({
-        id: '',
-        nom: '',
-        poste: '',
-        dateDebut: '',
-        taches: ''
-    });
-
-    useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                setFormData({ ...initialData, actif: initialData.actif !== false });
-            } else {
-                setFormData({
-                    id: `RH_${Date.now()}`,
-                    nom: '',
-                    poste: '',
-                    dateDebut: new Date().toISOString().split('T')[0],
-                    taches: '',
-                    actif: true
-                });
-            }
+const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
+    const [formData, setFormData] = useState(() => {
+        if (initialData) {
+            return { ...initialData, actif: initialData.actif !== false };
         }
-    }, [isOpen, initialData]);
+        return {
+            id: `RH_${Date.now()}`,
+            nom: '',
+            poste: '',
+            dateDebut: new Date().toISOString().split('T')[0],
+            taches: '',
+            actif: true
+        };
+    });
 
     if (!isOpen) return null;
 

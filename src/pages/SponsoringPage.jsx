@@ -40,19 +40,24 @@ const defaultDummySponsoring = [
 ];
 
 const SponsoringPage = () => {
-    const [sponsoringList, setSponsoringList] = useState([]);
+    const [sponsoringList, setSponsoringList] = useState(() => {
+        const saved = getStorage('mynds_sponsoring');
+        if (saved) return saved;
+        setStorage('mynds_sponsoring', defaultDummySponsoring);
+        return defaultDummySponsoring;
+    });
+
+    const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        const saved = getStorage('mynds_sponsoring');
-        if (saved) {
-            setSponsoringList(saved);
-        } else {
-            setSponsoringList(defaultDummySponsoring);
-            setStorage('mynds_sponsoring', defaultDummySponsoring);
-        }
+        const handleStorage = () => {
+            const saved = getStorage('mynds_sponsoring');
+            if (saved) setSponsoringList(saved);
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
     useEffect(() => {

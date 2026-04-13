@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { getBankTransactions, getFactures } from '../services/storageService';
 
@@ -72,30 +72,9 @@ const IncomeExpenseChart = ({ targetYear }) => {
         return () => {
             window.removeEventListener('storage', calculateData);
         };
-    }, [currentYear]);
+    }, [currentYear, targetYear]);
 
     const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 0 }).format(val);
-
-    const CustomTooltip = ({ active, payload, label }) => {
-        if (active && payload && payload.length) {
-            return (
-                <div style={{
-                    background: 'var(--card-bg)', backdropFilter: 'var(--glass-blur)', padding: '12px',
-                    borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: 'var(--card-shadow)',
-                    color: 'var(--text-main)', fontSize: '12px'
-                }}>
-                    <div style={{ fontWeight: '800', marginBottom: '8px' }}>{label}</div>
-                    {payload.map((entry, index) => (
-                        <div key={index} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '4px' }}>
-                            <span style={{ color: entry.color, fontWeight: '600' }}>{entry.name} :</span>
-                            <span style={{ fontWeight: '800' }}>{formatMoney(entry.value)}</span>
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-        return null;
-    };
 
     return (
         <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -120,7 +99,7 @@ const IncomeExpenseChart = ({ targetYear }) => {
                             interval={0}
                         />
                         <YAxis hide={true} />
-                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 4 }} />
+                        <Tooltip content={<CustomTooltip formatMoney={formatMoney} />} cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 4 }} />
                         <Bar dataKey="recette" name="Recettes" fill="#10b981" radius={[3, 3, 0, 0]} />
                         <Bar dataKey="charge" name="Charges" fill="#ef4444" radius={[3, 3, 0, 0]} />
                     </BarChart>
@@ -128,6 +107,27 @@ const IncomeExpenseChart = ({ targetYear }) => {
             </div>
         </div>
     );
+};
+
+const CustomTooltip = ({ active, payload, label, formatMoney }) => {
+    if (active && payload && payload.length) {
+        return (
+            <div style={{
+                background: 'var(--card-bg)', backdropFilter: 'var(--glass-blur)', padding: '12px',
+                borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: 'var(--card-shadow)',
+                color: 'var(--text-main)', fontSize: '12px'
+            }}>
+                <div style={{ fontWeight: '800', marginBottom: '8px' }}>{label}</div>
+                {payload.map((entry, index) => (
+                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '4px' }}>
+                        <span style={{ color: entry.color, fontWeight: '600' }}>{entry.name} :</span>
+                        <span style={{ fontWeight: '800' }}>{formatMoney(entry.value)}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
 };
 
 export default IncomeExpenseChart;

@@ -43,23 +43,6 @@ const EmployeeWorkloadChart = () => {
         return () => window.removeEventListener('storage', calculateWorkload);
     }, []);
 
-    const CustomTooltip = ({ active, payload }) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            return (
-                <div style={{
-                    background: 'var(--card-bg)', backdropFilter: 'var(--glass-blur)', padding: '10px 14px',
-                    borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: 'var(--card-shadow)',
-                    color: 'var(--text-main)', fontSize: '12px'
-                }}>
-                    <div style={{ fontWeight: '800', marginBottom: '4px', color: '#3b82f6' }}>{data.fullName}</div>
-                    <div>Impliqué(e) sur <strong>{data.projects}</strong> projet(s)</div>
-                </div>
-            );
-        }
-        return null;
-    };
-
     return (
         <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 4px 12px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', height: '100%' }}>
             <h3 style={{ fontSize: '12px', fontWeight: '800', margin: '0 0 12px 0', color: 'var(--text-main)' }}>Charge Équipe (Projets/RH)</h3>
@@ -93,6 +76,23 @@ const EmployeeWorkloadChart = () => {
             </div>
         </div>
     );
+};
+
+const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div style={{
+                background: 'var(--card-bg)', backdropFilter: 'var(--glass-blur)', padding: '10px 14px',
+                borderRadius: '8px', border: '1px solid var(--border-color)', boxShadow: 'var(--card-shadow)',
+                color: 'var(--text-main)', fontSize: '12px'
+            }}>
+                <div style={{ fontWeight: '800', marginBottom: '4px', color: '#3b82f6' }}>{data.fullName}</div>
+                <div>Impliqué(e) sur <strong>{data.projects}</strong> projet(s)</div>
+            </div>
+        );
+    }
+    return null;
 };
 
 export default EmployeeWorkloadChart;

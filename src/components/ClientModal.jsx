@@ -1,112 +1,54 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, Check } from 'lucide-react';
 import { loadConfig, initialSecteurs, initialServices } from '../data/defaultConfig';
-import { generateId, getClients } from '../services/storageService';
+import { generateId, getClients, generateSequentialClientId } from '../services/storageService';
 
 const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
     // Les 10 champs demandés pour la fiche client
-    const [enseigne, setEnseigne] = useState('');
-    const [logo, setLogo] = useState('');
-    const [projet, setProjet] = useState('');
-    const [secteur, setSecteur] = useState('');
-    const [etatClient, setEtatClient] = useState('Actif');
-    const [charge, setCharge] = useState('');
-    const [dateDebut, setDateDebut] = useState('');
-    const [mf, setMf] = useState('');
-    const [mail, setMail] = useState('');
-    const [telephone, setTelephone] = useState('');
-    const [adresse, setAdresse] = useState('');
-    const [dateFin, setDateFin] = useState('');
-    const [bonCommande, setBonCommande] = useState('');
+    const [enseigne, setEnseigne] = useState(initialData?.enseigne || '');
+    const [logo, setLogo] = useState(initialData?.logo || '');
+    const [projet, setProjet] = useState(initialData?.projet || '');
+    const [secteur, setSecteur] = useState(initialData?.secteur || '');
+    const [etatClient, setEtatClient] = useState(initialData?.etatClient || 'Actif');
+    const [charge, setCharge] = useState(initialData?.charge || '');
+    const [dateDebut, setDateDebut] = useState(initialData?.dateDebut || '');
+    const [mf, setMf] = useState(initialData?.mf || '');
+    const [mail, setMail] = useState(initialData?.mail || '');
+    const [telephone, setTelephone] = useState(initialData?.telephone || '');
+    const [adresse, setAdresse] = useState(initialData?.adresse || '');
+    const [dateFin, setDateFin] = useState(initialData?.dateFin || '');
+    const [bonCommande, setBonCommande] = useState(initialData?.bonCommande || '');
 
     // Champs Régime & Facturation
-    const [regime, setRegime] = useState('Abonnement');
-    const [montantMensuel, setMontantMensuel] = useState('');
-    const [jourPaiement, setJourPaiement] = useState('');
-    const [delaiPaiement, setDelaiPaiement] = useState('');
-    const [modeCycle, setModeCycle] = useState('Mois civil (1er au 31)'); // NOUVEAU: Type de cycle
-    const [jourCycle, setJourCycle] = useState(''); // NOUVEAU: Jour spécifique du cycle
-    const [dureeMois, setDureeMois] = useState('');
-    const [montantTotal, setMontantTotal] = useState('');
-    const [datePaiementOneShot, setDatePaiementOneShot] = useState('');
-    const [servicesRecurrents, setServicesRecurrents] = useState([{ id: 1, desc: '', prix: '' }]);
-    const [projectCosts, setProjectCosts] = useState([{ id: 1, nom: '', specialite: '', montant: '' }]);
+    const [regime, setRegime] = useState(initialData?.regime || 'Abonnement');
+    const [montantMensuel, setMontantMensuel] = useState(initialData?.montantMensuel || '');
+    const [jourPaiement, setJourPaiement] = useState(initialData?.jourPaiement || '');
+    const [delaiPaiement, setDelaiPaiement] = useState(initialData?.delaiPaiement || '');
+    const [modeCycle, setModeCycle] = useState(() => {
+        if (!initialData) return 'Mois civil (1er au 31)';
+        return initialData.modeCycle === "Date d'entrée" ? "Date de début" : (initialData.modeCycle || 'Mois civil (1er au 31)');
+    });
+    const [jourCycle, setJourCycle] = useState(initialData?.jourCycle || '');
+    const [dureeMois, setDureeMois] = useState(initialData?.dureeMois || '');
+    const [montantTotal, setMontantTotal] = useState(initialData?.montantTotal || '');
+    const [datePaiementOneShot, setDatePaiementOneShot] = useState(initialData?.datePaiement || '');
+    const [servicesRecurrents, setServicesRecurrents] = useState(() => {
+        if (initialData?.servicesRecurrents && initialData.servicesRecurrents.length > 0) return initialData.servicesRecurrents;
+        return [{ id: 1, desc: '', prix: '' }];
+    });
+    const [projectCosts, setProjectCosts] = useState(() => {
+        if (initialData?.projectCosts && initialData.projectCosts.length > 0) return initialData.projectCosts;
+        return [{ id: 1, nom: '', specialite: '', montant: '' }];
+    });
 
-    const [dureeService, setDureeService] = useState('');
-    const [sousTVA, setSousTVA] = useState(false);
-    const [employeAssocie, setEmployeAssocie] = useState('');
+    const [dureeService, setDureeService] = useState(initialData?.dureeService || '');
+    const [sousTVA, setSousTVA] = useState(initialData?.sousTVA || false);
+    const [employeAssocie, setEmployeAssocie] = useState(initialData?.employeAssocie || '');
 
-    const [secteursList, setSecteursList] = useState([]);
-    const [servicesList, setServicesList] = useState([]);
-    const [rhList, setRhList] = useState([]);
-
-    useEffect(() => {
-        if (isOpen) {
-            setSecteursList(loadConfig('secteurs', initialSecteurs));
-            setServicesList(loadConfig('services', initialServices));
-            setRhList(loadConfig('rh', []));
-
-            if (initialData) {
-                // Populate fields if editing
-                setEnseigne(initialData.enseigne || '');
-                setLogo(initialData.logo || '');
-                setProjet(initialData.projet || '');
-                setSecteur(initialData.secteur || '');
-                setEtatClient(initialData.etatClient || 'Actif');
-                setCharge(initialData.charge || '');
-                setDateDebut(initialData.dateDebut || '');
-                setMf(initialData.mf || '');
-                setMail(initialData.mail || '');
-                setTelephone(initialData.telephone || '');
-                setAdresse(initialData.adresse || '');
-                setDateFin(initialData.dateFin || '');
-                setBonCommande(initialData.bonCommande || '');
-                setRegime(initialData.regime || 'Abonnement');
-                setMontantMensuel(initialData.montantMensuel || '');
-                setJourPaiement(initialData.jourPaiement || '');
-                setDelaiPaiement(initialData.delaiPaiement || '');
-                setModeCycle(initialData.modeCycle === "Date d'entrée" ? "Date de début" : (initialData.modeCycle || 'Mois civil (1er au 31)'));
-                setJourCycle(initialData.jourCycle || '');
-                setDureeMois(initialData.dureeMois || '');
-                setMontantTotal(initialData.montantTotal || '');
-                setDatePaiementOneShot(initialData.datePaiement || '');
-                setServicesRecurrents(initialData.servicesRecurrents && initialData.servicesRecurrents.length > 0 ? initialData.servicesRecurrents : [{ id: 1, desc: '', prix: '' }]);
-                setProjectCosts(initialData.projectCosts && initialData.projectCosts.length > 0 ? initialData.projectCosts : [{ id: 1, nom: '', specialite: '', montant: '' }]);
-                setDureeService(initialData.dureeService || '');
-                setSousTVA(initialData.sousTVA || false);
-                setEmployeAssocie(initialData.employeAssocie || '');
-            } else {
-                // Reset form
-                setEnseigne('');
-                setLogo('');
-                setProjet('');
-                setSecteur('');
-                setEtatClient('Actif');
-                setCharge('');
-                setDateDebut('');
-                setMf('');
-                setMail('');
-                setTelephone('');
-                setAdresse('');
-                setDateFin('');
-                setBonCommande('');
-                setRegime('Abonnement');
-                setMontantMensuel('');
-                setJourPaiement('');
-                setDelaiPaiement('');
-                setModeCycle('Mois civil (1er au 31)');
-                setJourCycle('');
-                setDureeMois('');
-                setMontantTotal('');
-                setDatePaiementOneShot('');
-                setServicesRecurrents([{ id: 1, desc: '', prix: '' }]);
-                setProjectCosts([{ id: 1, nom: '', specialite: '', montant: '' }]);
-                setDureeService('');
-                setSousTVA(false);
-                setEmployeAssocie('');
-            }
-        }
-    }, [isOpen, initialData]);
+    // Load config once or when isOpen changes
+    const secteursList = useMemo(() => isOpen ? loadConfig('secteurs', initialSecteurs) : [], [isOpen]);
+    const servicesList = useMemo(() => isOpen ? loadConfig('services', initialServices) : [], [isOpen]);
+    const rhList = useMemo(() => isOpen ? loadConfig('rh', []) : [], [isOpen]);
 
     const activeSecteurRecord = secteursList.find(s => s.nom === secteur);
 
@@ -171,7 +113,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
         }
 
         const newClient = {
-            id: initialData ? initialData.id : generateId('CLI'),
+            id: initialData ? initialData.id : generateSequentialClientId(cleanEnseigne, dateDebut),
             enseigne: cleanEnseigne,
             logo,
             projet,
@@ -445,7 +387,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                             {servicesList.map(s => <option key={s.id} value={s.nom}></option>)}
                                         </datalist>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            {servicesRecurrents.map((service, index) => (
+                                            {servicesRecurrents.map((service) => (
                                                 <div key={service.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                     <div style={{ flex: 3 }}>
                                                         <input list="services-list-client" type="text" placeholder="Service prévu sur la facture..." value={service.desc} onChange={e => updateService(service.id, 'desc', e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', fontSize: '12px', fontWeight: '500', boxSizing: 'border-box' }} />
@@ -495,7 +437,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                 <div style={{ width: '30px' }}></div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-                                {projectCosts.map((cost, index) => (
+                                {projectCosts.map((cost) => (
                                     <div key={cost.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                         <div style={{ flex: 1.5 }}>
                                             {rhList && rhList.length > 0 ? (

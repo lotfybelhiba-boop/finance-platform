@@ -9,6 +9,7 @@ import InvoiceTypesChart from '../components/InvoiceTypesChart';
 import CashflowForecastChart from '../components/CashflowForecastChart';
 import EmployeeWorkloadChart from '../components/EmployeeWorkloadChart';
 import ScrollingBanner from '../components/ScrollingBanner';
+import UpcomingDeadlinesCard from '../components/UpcomingDeadlinesCard';
 import { getBankTransactions, getFactures, getClients, getStorage } from '../services/storageService';
 import { Users, Briefcase, RefreshCw, Zap } from 'lucide-react';
 
@@ -256,8 +257,13 @@ const DashboardPage = () => {
                 </div>
 
                 {/* RIGHT COLUMN: Calendar */}
-                <div style={{ flex: '1 1 260px', minWidth: '260px', maxWidth: '340px' }}>
+                <div style={{ flex: '1 1 260px', minWidth: '260px', maxWidth: '340px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <MonthlyCalendarCard />
+                    <UpcomingDeadlinesCard 
+                        factures={factures} 
+                        transactions={manualTransactions} 
+                        clients={clients} 
+                    />
                 </div>
             </div>
 

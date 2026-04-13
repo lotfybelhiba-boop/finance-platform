@@ -524,13 +524,16 @@ const ConfigPage = () => {
             </div>
 
             {/* MODALS */}
-            <RHFormModal
-                isOpen={isRHModalOpen}
-                onClose={() => { setIsRHModalOpen(false); setEditingRH(null); }}
-                onSave={handleSaveRH}
-                initialData={editingRH}
-                projetsDisponibles={allProjets}
-            />
+            {isRHModalOpen && (
+                <RHFormModal
+                    key={editingRH?.id || 'new'}
+                    isOpen={isRHModalOpen}
+                    onClose={() => { setIsRHModalOpen(false); setEditingRH(null); }}
+                    onSave={handleSaveRH}
+                    initialData={editingRH}
+                    projetsDisponibles={allProjets}
+                />
+            )}
         </div>
     );
 };

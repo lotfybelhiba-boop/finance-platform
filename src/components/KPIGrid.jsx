@@ -40,14 +40,18 @@ const KPICard = ({ title, value, subtext, subtextNode, variation, isNet = false,
 const KPIGrid = () => {
     const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(val);
 
-    const [factures, setFactures] = useState([]);
-    const [transactions, setTransactions] = useState([]);
-    const [clients, setClients] = useState([]);
+    const [factures, setFactures] = useState(() => getFactures());
+    const [transactions, setTransactions] = useState(() => getBankTransactions());
+    const [clients, setClients] = useState(() => getClients());
 
     useEffect(() => {
-        setFactures(getFactures());
-        setTransactions(getBankTransactions());
-        setClients(getClients());
+        const handleStorage = () => {
+            setFactures(getFactures());
+            setTransactions(getBankTransactions());
+            setClients(getClients());
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
     const currentYear = new Date().getFullYear();

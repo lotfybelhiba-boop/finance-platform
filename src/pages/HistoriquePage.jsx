@@ -5,25 +5,34 @@ import { History, Search, Printer, Calendar, Undo2, ArrowUpRight, ArrowDownLeft,
 import { getFactures, saveFactures, getStorage, setStorage } from '../services/storageService';
 
 const HistoriquePage = () => {
-    const [factures, setFactures] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [previewFacture, setPreviewFacture] = useState(null);
     const [activeTab, setActiveTab] = useState('Factures'); // 'Factures', 'Devis', 'Banque', 'Clients'
     const [ignoredTxs, setIgnoredTxs] = useState(() => getStorage('mynds_ignored_transactions', []));
+
+    const [factures, setFactures] = useState(() => {
+        try {
+            const allFactures = getFactures();
+            const parsed = allFactures.filter(f => f.statut === 'Archived');
+            return parsed.sort((a, b) => new Date(b.dateEmi) - new Date(a.dateEmi));
+        } catch (e) {
+            console.error("Erreur de chargement de l'historique des factures", e);
+            return [];
+        }
+    });
 
     useEffect(() => {
         setStorage('mynds_ignored_transactions', ignoredTxs);
     }, [ignoredTxs]);
 
     useEffect(() => {
-        try {
+        const handleStorage = () => {
             const allFactures = getFactures();
             const parsed = allFactures.filter(f => f.statut === 'Archived');
-            const sorted = parsed.sort((a, b) => new Date(b.dateEmi) - new Date(a.dateEmi));
-            setFactures(sorted);
-        } catch (e) {
-            console.error("Erreur de chargement de l'historique des factures", e);
-        }
+            setFactures(parsed.sort((a, b) => new Date(b.dateEmi) - new Date(a.dateEmi)));
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
     const handlePrint = (facture) => {
@@ -76,8 +85,8 @@ const HistoriquePage = () => {
     );
 
     // Global Stats for Historique
-    const totalFacture = factures.reduce((acc, f) => acc + f.montant, 0);
-    const totalEnCaisse = factures.filter(f => f.statut === 'Paid').reduce((acc, f) => acc + f.montant, 0);
+    const totalFacture = factures.reduce((acc, f) => acc + (f.montant || 0), 0);
+    const totalEnCaisse = factures.filter(f => f.statut === 'Paid').reduce((acc, f) => acc + (f.montant || 0), 0);
     const countTotal = factures.length;
     const countAbonnement = factures.filter(f => f.lignes && f.lignes.some(l => l.desc.toLowerCase().includes('abonnement'))).length;
 

@@ -1,0 +1,474 @@
+﻿
+D:\Mynds Finance\financial-dashboard\src\App.jsx
+  66:9  error  'handleLogout' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\AlertsBlock.jsx
+   36:11  error  'currentMonth' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+   37:11  error  'currentYear' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    no-unused-vars
+  121:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  119 |
+  120 |             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+> 121 |                 <AlertItem 
+      |                  ^^^^^^^^^ This component is created during render
+  122 |                     id="contrats"
+  123 |                     icon={<CalendarOff size={16} />} 
+  124 |                     color="#f59e0b" // warning orange
+
+   62 |     const rapportsText = ["G├®n├®rer les synth├¿ses mensuelles KPI", "V├®rifier la classification des charges"];
+   63 |
+>  64 |     const AlertItem = ({ id, icon, color, title, value, highlight, items, expanded, onToggle }) => (
+      |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  65 |         <div style={{ background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid ${highlight ? color : 'var(--border-color)'}`, overflow: 'hidden', transition: 'all 0.2s', cursor: highlight ? 'pointer' : 'default' }}
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  66 |              onClick={() => { if (highlight) onToggle(id); }}>
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |         </div>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |     );
+      | ^^^^^^ The component is created during render here
+  108 |
+  109 |     const toggleTab = (id) => {
+  110 |         setExpandedTab(expandedTab === id ? null : id);  react-hooks/static-components
+  133:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  131 |                 />
+  132 |                 
+> 133 |                 <AlertItem 
+      |                  ^^^^^^^^^ This component is created during render
+  134 |                     id="afaire"
+  135 |                     icon={<FileEdit size={16} />} 
+  136 |                     color="#3b82f6" // info blue
+
+   62 |     const rapportsText = ["G├®n├®rer les synth├¿ses mensuelles KPI", "V├®rifier la classification des charges"];
+   63 |
+>  64 |     const AlertItem = ({ id, icon, color, title, value, highlight, items, expanded, onToggle }) => (
+      |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  65 |         <div style={{ background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid ${highlight ? color : 'var(--border-color)'}`, overflow: 'hidden', transition: 'all 0.2s', cursor: highlight ? 'pointer' : 'default' }}
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  66 |              onClick={() => { if (highlight) onToggle(id); }}>
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |         </div>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |     );
+      | ^^^^^^ The component is created during render here
+  108 |
+  109 |     const toggleTab = (id) => {
+  110 |         setExpandedTab(expandedTab === id ? null : id);                                                           react-hooks/static-components
+  145:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  143 |                 />
+  144 |
+> 145 |                 <AlertItem 
+      |                  ^^^^^^^^^ This component is created during render
+  146 |                     id="brouillons"
+  147 |                     icon={<Send size={16} />} 
+  148 |                     color="#ef4444" // danger red
+
+   62 |     const rapportsText = ["G├®n├®rer les synth├¿ses mensuelles KPI", "V├®rifier la classification des charges"];
+   63 |
+>  64 |     const AlertItem = ({ id, icon, color, title, value, highlight, items, expanded, onToggle }) => (
+      |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  65 |         <div style={{ background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid ${highlight ? color : 'var(--border-color)'}`, overflow: 'hidden', transition: 'all 0.2s', cursor: highlight ? 'pointer' : 'default' }}
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  66 |              onClick={() => { if (highlight) onToggle(id); }}>
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |         </div>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |     );
+      | ^^^^^^ The component is created during render here
+  108 |
+  109 |     const toggleTab = (id) => {
+  110 |         setExpandedTab(expandedTab === id ? null : id);                                                                           react-hooks/static-components
+  157:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  155 |                 />
+  156 |
+> 157 |                 <AlertItem 
+      |                  ^^^^^^^^^ This component is created during render
+  158 |                     id="rapports"
+  159 |                     icon={<PieChart size={16} />} 
+  160 |                     color="#10b981" // success green
+
+   62 |     const rapportsText = ["G├®n├®rer les synth├¿ses mensuelles KPI", "V├®rifier la classification des charges"];
+   63 |
+>  64 |     const AlertItem = ({ id, icon, color, title, value, highlight, items, expanded, onToggle }) => (
+      |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  65 |         <div style={{ background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid ${highlight ? color : 'var(--border-color)'}`, overflow: 'hidden', transition: 'all 0.2s', cursor: highlight ? 'pointer' : 'default' }}
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  66 |              onClick={() => { if (highlight) onToggle(id); }}>
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 106 |         </div>
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 107 |     );
+      | ^^^^^^ The component is created during render here
+  108 |
+  109 |     const toggleTab = (id) => {
+  110 |         setExpandedTab(expandedTab === id ? null : id);                                                                      react-hooks/static-components
+
+D:\Mynds Finance\financial-dashboard\src\components\CalculsOrganigramme.jsx
+  10:29  error  'Icon' is defined but never used  no-unused-vars
+  22:38  error  'Icon' is defined but never used  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\CashflowForecastChart.jsx
+    4:43  error  'label' is defined but never used                                                               no-unused-vars
+  141:11  error  'gradientConfig' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\ClientModal.jsx
+   45:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  43 |     useEffect(() => {
+  44 |         if (isOpen) {
+> 45 |             setSecteursList(loadConfig('secteurs', initialSecteurs));
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  46 |             setServicesList(loadConfig('services', initialServices));
+  47 |             setRhList(loadConfig('rh', []));
+  48 |  react-hooks/set-state-in-effect
+  448:79  error  'index' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  498:58  error  'index' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\ClientPaymentChart.jsx
+  153:47  error  'getDotColor' is not defined  no-undef
+
+D:\Mynds Finance\financial-dashboard\src\components\DevisModal.jsx
+  60:80  error  Error: Cannot call impure function during render
+
+`Math.random` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  58 |         e.preventDefault();
+  59 |         onSave({
+> 60 |             id: `DEV-${new Date().getFullYear()}-${(lignes.length + Math.floor(Math.random() * 1000)).toString().padStart(3, '0')}`,
+     |                                                                                ^^^^^^^^^^^^^ Cannot call impure function
+  61 |             client,
+  62 |             montant: totalTTC,
+  63 |             date: dateEmi,  react-hooks/purity
+
+D:\Mynds Finance\financial-dashboard\src\components\EmployeeWorkloadChart.jsx
+  84:48  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  82 |                                 tick={{ fontSize: 10, fill: 'var(--text-muted)', fontWeight: 600 }} 
+  83 |                             />
+> 84 |                             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
+     |                                                ^^^^^^^^^^^^^ This component is created during render
+  85 |                             <Bar dataKey="projects" radius={[0, 4, 4, 0]}>
+  86 |                                 {data.map((entry, index) => (
+  87 |                                     <Cell key={`cell-${index}`} fill={'#3b82f6'} />
+
+  44 |     }, []);
+  45 |
+> 46 |     const CustomTooltip = ({ active, payload }) => {
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 47 |         if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 48 |             const data = payload[0].payload;
+     ÔÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 60 |         return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 61 |     };
+     | ^^^^^^ The component is created during render here
+  62 |
+  63 |     return (
+  64 |         <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0:4px 12px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', height: '100%' }}>  react-hooks/static-components
+
+D:\Mynds Finance\financial-dashboard\src\components\FactureModal.jsx
+  167:8   warning  React Hook useEffect has missing dependencies: 'initialClientName' and 'targetDate'. Either include them or remove the dependency array. If 'setClient' needs the current value of 'initialClientName', you can also switch to useReducer instead of useState and read 'initialClientName' in the reducer  react-hooks/exhaustive-deps
+  259:22  error    'e' is defined but never used                                                                                                                                                                                                                                                                              no-unused-vars
+  259:25  error    Empty block statement                                                                                                                                                                                                                                                                                      no-empty
+  340:8   warning  React Hook useEffect has a missing dependency: 'periodeDebut'. Either include it or remove the dependency array                                                                                                                                                                                            react-hooks/exhaustive-deps
+  693:49  error    'index' is defined but never used                                                                                                                                                                                                                                                                          no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\IncomeExpenseChart.jsx
+   75:8   warning  React Hook useEffect has a missing dependency: 'targetYear'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/exhaustive-deps
+  123:44  error    Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  121 |                         />
+  122 |                         <YAxis hide={true} />
+> 123 |                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 4 }} />
+      |                                            ^^^^^^^^^^^^^ This component is created during render
+  124 |                         <Bar dataKey="recette" name="Recettes" fill="#10b981" radius={[3, 3, 0, 0]} />
+  125 |                         <Bar dataKey="charge" name="Charges" fill="#ef4444" radius={[3, 3, 0, 0]} />
+  126 |                     </BarChart>
+
+   77 |     const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 0 }).format(val);
+   78 |
+>  79 |     const CustomTooltip = ({ active, payload, label }) => {
+      |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  80 |         if (active && payload && payload.length) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  81 |             return (
+      ÔÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  97 |         return null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+>  98 |     };
+      | ^^^^^^ The component is created during render here
+   99 |
+  100 |     return (
+  101 |         <div style={{ background: 'var(--card-bg)', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0:4px 12px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', height: '100%' }}>  react-hooks/static-components
+
+D:\Mynds Finance\financial-dashboard\src\components\InvoiceAuditModal.jsx
+   8:37  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render   react-hooks/rules-of-hooks
+   9:35  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render   react-hooks/rules-of-hooks
+  11:41  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render   react-hooks/rules-of-hooks
+  12:43  error  React Hook "useState" is called conditionally. React Hooks must be called in the exact same order in every component render   react-hooks/rules-of-hooks
+  14:5   error  React Hook "useEffect" is called conditionally. React Hooks must be called in the exact same order in every component render  react-hooks/rules-of-hooks
+  23:26  error  React Hook "useMemo" is called conditionally. React Hooks must be called in the exact same order in every component render    react-hooks/rules-of-hooks
+
+D:\Mynds Finance\financial-dashboard\src\components\KPIGrid.jsx
+  48:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  46 |
+  47 |     useEffect(() => {
+> 48 |         setFactures(getFactures());
+     |         ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  49 |         setTransactions(getBankTransactions());
+  50 |         setClients(getClients());
+  51 |     }, []);  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\components\MonthlyCalendarCard.jsx
+  146:9  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  144 |         }
+  145 |
+> 146 |         setDays(newDays);
+      |         ^^^^^^^ Avoid calling setState() directly within an effect
+  147 |     }, [currentDate]);
+  148 |
+  149 |     const handlePrevMonth = () => {  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\components\RHFormModal.jsx
+   4:62  error  'projetsDisponibles' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               no-unused-vars
+  16:17  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  14 |         if (isOpen) {
+  15 |             if (initialData) {
+> 16 |                 setFormData({ ...initialData, actif: initialData.actif !== false });
+     |                 ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  17 |             } else {
+  18 |                 setFormData({
+  19 |                     id: `RH_${Date.now()}`,  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\components\ScrollingBanner.jsx
+  24:19  error  'currentYear' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u   no-unused-vars
+  25:19  error  'currentMonth' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\components\SponsoringModal.jsx
+  24:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  22 |     useEffect(() => {
+  23 |         if (isOpen) {
+> 24 |             setFormData(initialData ? { ...initialData } : { ...emptySponsoring, id: `SPONSOR-${Date.now()}` });
+     |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  25 |
+  26 |             // Fetch clients for dropdown
+  27 |             const savedClients = getClients();  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\data\defaultConfig.js
+  215:14  error  'e' is defined but never used  no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\BanquePage.jsx
+    26:12  error    'isIdManual' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+    26:24  error    'setIsIdManual' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     no-unused-vars
+   962:29  error    'isOpen' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                no-unused-vars
+  1022:13  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  1020 |     useEffect(() => {
+  1021 |         if (!allowedBanks.includes(formData.bank)) {
+> 1022 |             setFormData(prev => ({ ...prev, bank: allowedBanks[0] }));
+       |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  1023 |         }
+  1024 |         // Auto-set Debit for Charges/Perso usually, but leave it flexible
+  1025 |     }, [formData.category]);  react-hooks/set-state-in-effect
+  1025:8   warning  React Hook useEffect has missing dependencies: 'allowedBanks' and 'formData.bank'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/exhaustive-deps
+
+D:\Mynds Finance\financial-dashboard\src\pages\CalculPage.jsx
+  129:11  error  'handlePersoChange' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+  135:11  error  'addPersoRow' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-unused-vars
+  141:11  error  'removePersoRow' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           no-unused-vars
+  176:17  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  174 |
+  175 |         const newProject = {
+> 176 |             id: Date.now(),
+      |                 ^^^^^^^^^^ Cannot call impure function
+  177 |             name: projectName || `Projet sans nom`,
+  178 |             duration: projectMonths,
+  179 |             durationDisplay: dureeAffichage,                                                                                                                                                                                                                                             react-hooks/purity
+  205:35  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  203 |         setDateFin('');
+  204 |         setMonthlyCosts([
+> 205 |             { id: 'initial-rh-' + Date.now(), type: 'RH', name: '', montant: '' },
+      |                                   ^^^^^^^^^^ Cannot call impure function
+  206 |             { id: 'initial-pub-' + Date.now(), type: 'Pub', name: '', montant: '' },
+  207 |             { id: 'initial-mng-' + Date.now(), type: 'Mng', name: '', montant: '' },
+  208 |             { id: 'initial-logiciel-' + Date.now(), type: 'Abonnement Logiciel', name: '', montant: '' }  react-hooks/purity
+  206:36  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  204 |         setMonthlyCosts([
+  205 |             { id: 'initial-rh-' + Date.now(), type: 'RH', name: '', montant: '' },
+> 206 |             { id: 'initial-pub-' + Date.now(), type: 'Pub', name: '', montant: '' },
+      |                                    ^^^^^^^^^^ Cannot call impure function
+  207 |             { id: 'initial-mng-' + Date.now(), type: 'Mng', name: '', montant: '' },
+  208 |             { id: 'initial-logiciel-' + Date.now(), type: 'Abonnement Logiciel', name: '', montant: '' }
+  209 |         ]);             react-hooks/purity
+  207:36  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  205 |             { id: 'initial-rh-' + Date.now(), type: 'RH', name: '', montant: '' },
+  206 |             { id: 'initial-pub-' + Date.now(), type: 'Pub', name: '', montant: '' },
+> 207 |             { id: 'initial-mng-' + Date.now(), type: 'Mng', name: '', montant: '' },
+      |                                    ^^^^^^^^^^ Cannot call impure function
+  208 |             { id: 'initial-logiciel-' + Date.now(), type: 'Abonnement Logiciel', name: '', montant: '' }
+  209 |         ]);
+  210 |                                       react-hooks/purity
+  208:41  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+  206 |             { id: 'initial-pub-' + Date.now(), type: 'Pub', name: '', montant: '' },
+  207 |             { id: 'initial-mng-' + Date.now(), type: 'Mng', name: '', montant: '' },
+> 208 |             { id: 'initial-logiciel-' + Date.now(), type: 'Abonnement Logiciel', name: '', montant: '' }
+      |                                         ^^^^^^^^^^ Cannot call impure function
+  209 |         ]);
+  210 |
+  211 |         // Redirect to Finance page                                                                                 react-hooks/purity
+  215:11  error  'removeSavedProject' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-unused-vars
+  223:11  error  'globalCostsMonthly' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-unused-vars
+  225:11  error  'globalMarginRate' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+  229:11  error  'resteAVivre' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\ClientsPage.jsx
+  326:11  error  'activeContracts' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  474:31  error  'statusStyle' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u      no-unused-vars
+  475:31  error  'isAbonnement' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u     no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\ConfigPage.jsx
+  36:34  error  Do not access Object.prototype method 'hasOwnProperty' from target object  no-prototype-builtins
+
+D:\Mynds Finance\financial-dashboard\src\pages\FacturesPage.jsx
+   14:11  error  'navigate' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  456:46  error  'e' is defined but never used                                                             no-unused-vars
+  456:49  error  Empty block statement                                                                     no-empty
+
+D:\Mynds Finance\financial-dashboard\src\pages\FinancePage.jsx
+  256:11   error  'totalRecetteTTC' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u         no-unused-vars
+  258:11   error  'totalCharges' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u            no-unused-vars
+  260:11   error  'totalCashNet' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u            no-unused-vars
+  261:11   error  'totalBeneficeTheorique' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  549:369  error  '_' is defined but never used                                                                           no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\HistoriquePage.jsx
+  23:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  21 |             const parsed = allFactures.filter(f => f.statut === 'Archived');
+  22 |             const sorted = parsed.sort((a, b) => new Date(b.dateEmi) - new Date(a.dateEmi));
+> 23 |             setFactures(sorted);
+     |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  24 |         } catch (e) {
+  25 |             console.error("Erreur de chargement de l'historique des factures", e);
+  26 |         }  react-hooks/set-state-in-effect
+
+D:\Mynds Finance\financial-dashboard\src\pages\RapportsPage.jsx
+   26:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  24 |
+  25 |     useEffect(() => {
+> 26 |         setTransactions(getBankTransactions());
+     |         ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  27 |         setFactures(getFactures());
+  28 |         setClients(getClients());
+  29 |     }, []);  react-hooks/set-state-in-effect
+  149:15  error  'defaultChargeMng' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        no-unused-vars
+
+D:\Mynds Finance\financial-dashboard\src\pages\SponsoringPage.jsx
+  51:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  49 |         const saved = getStorage('mynds_sponsoring');
+  50 |         if (saved) {
+> 51 |             setSponsoringList(saved);
+     |             ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  52 |         } else {
+  53 |             setSponsoringList(defaultDummySponsoring);
+  54 |             setStorage('mynds_sponsoring', defaultDummySponsoring);  react-hooks/set-state-in-effect
+
+Ô£û 71 problems (67 errors, 4 warnings)
+

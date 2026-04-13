@@ -1,170 +1,165 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, FileDown, Wand2 } from 'lucide-react';
 import { generateDocumentPDF } from '../utils/pdfGenerator.jsx';
 import { loadConfig, initialServices } from '../data/defaultConfig';
 import { getClients, getFactures } from '../services/storageService';
 
 const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientName, targetDate }) => {
-    const [client, setClient] = useState('');
-    const [dateEmi, setDateEmi] = useState(new Date().toISOString().split('T')[0]);
-    const [echeance, setEcheance] = useState('');
-    const [periodeDebut, setPeriodeDebut] = useState('');
-    const [periodeFin, setPeriodeFin] = useState('');
-    const [lignes, setLignes] = useState([]);
-    const [conditions, setConditions] = useState('Standard');
-    const [applyTva, setApplyTva] = useState(true);
-    const [applyTimbre, setApplyTimbre] = useState(true);
-    const [isExonore, setIsExonore] = useState(false);
-    const [notes, setNotes] = useState('');
-    const [statut, setStatut] = useState('Draft');
+    const servicesList = useMemo(() => loadConfig('services', initialServices), []);
+    const clientsList = useMemo(() => getClients() || [], []);
+
+    // Initial state derived from props
+    const getInitialState = () => {
+        const initialState = {
+            client: '',
+            dateEmi: new Date().toISOString().split('T')[0],
+            echeance: '',
+            periodeDebut: '',
+            periodeFin: '',
+            lignes: [],
+            conditions: 'Standard',
+            applyTva: true,
+            applyTimbre: true,
+            isExonore: false,
+            notes: '',
+            statut: 'Draft',
+            isExtra: false,
+            coutExtra: 0,
+            ressourceExtra: '',
+            selectedMonth: ''
+        };
+
+        if (factureToEdit) {
+            return {
+                ...initialState,
+                client: factureToEdit.clientId || '',
+                dateEmi: factureToEdit.dateEmi || initialState.dateEmi,
+                echeance: factureToEdit.echeance !== 'N/A' ? factureToEdit.echeance : '',
+                periodeDebut: factureToEdit.periodeDebut || '',
+                periodeFin: factureToEdit.periodeFin || '',
+                statut: factureToEdit.statut || 'Draft',
+                lignes: factureToEdit.lignes || [],
+                conditions: factureToEdit.conditions || 'Standard',
+                applyTva: factureToEdit.tva > 0,
+                applyTimbre: factureToEdit.timbre > 0,
+                isExonore: factureToEdit.isExonore || false,
+                notes: factureToEdit.notes || '',
+                isExtra: factureToEdit.isExtra || false,
+                coutExtra: factureToEdit.coutExtra || 0,
+                ressourceExtra: factureToEdit.ressourceExtra || ''
+            };
+        }
+
+        if (initialClientName) {
+            const cObj = clientsList.find(c => c.id === initialClientName);
+            initialState.client = initialClientName;
+
+            if (cObj && cObj.regime === 'Abonnement') {
+                const baseDate = targetDate
+                    ? new Date(targetDate.year, targetDate.month, 1)
+                    : new Date();
+
+                let cycleDay = 1;
+                if (targetDate && targetDate.cycleDay) {
+                    cycleDay = targetDate.cycleDay;
+                } else if (cObj) {
+                    if (cObj.modeCycle?.includes('Mois civil')) cycleDay = 1;
+                    else if (cObj.modeCycle === 'Du 15 au 14') cycleDay = 15;
+                    else if ((cObj.modeCycle === "Date de début" || cObj.modeCycle === "Date d'entrée") && cObj.dateDebut) {
+                        const d = new Date(cObj.dateDebut);
+                        if (!isNaN(d.getTime())) cycleDay = d.getDate();
+                    } else if (cObj.modeCycle === 'Personnalisé' && cObj.jourCycle) {
+                        cycleDay = parseInt(cObj.jourCycle, 10);
+                    } else {
+                        if (cObj.jourFacturation) cycleDay = parseInt(cObj.jourFacturation, 10);
+                        else if (cObj.dateDebut) {
+                            const d = new Date(cObj.dateDebut);
+                            if (!isNaN(d.getTime())) cycleDay = d.getDate();
+                        } else if (cObj.jourPaiement) cycleDay = parseInt(cObj.jourPaiement, 10) || 1;
+                    }
+                }
+                if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
+
+                const pad = (n) => n.toString().padStart(2, '0');
+                const firstD = (cycleDay === 1)
+                    ? new Date(baseDate.getFullYear(), baseDate.getMonth(), 1)
+                    : new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, cycleDay);
+                const lastD = (cycleDay === 1)
+                    ? new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0)
+                    : new Date(baseDate.getFullYear(), baseDate.getMonth(), cycleDay - 1);
+
+                initialState.periodeDebut = `${firstD.getFullYear()}-${pad(firstD.getMonth() + 1)}-${pad(firstD.getDate())}`;
+                initialState.periodeFin = `${lastD.getFullYear()}-${pad(lastD.getMonth() + 1)}-${pad(lastD.getDate())}`;
+                initialState.dateEmi = initialState.periodeFin;
+
+                let echDate;
+                if (cObj && cObj.delaiPaiement) {
+                    echDate = new Date(lastD);
+                    echDate.setDate(echDate.getDate() + parseInt(cObj.delaiPaiement, 10));
+                } else {
+                    const jourP = cObj.jourPaiement || 5;
+                    echDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 2, jourP);
+                }
+                initialState.echeance = `${echDate.getFullYear()}-${pad(echDate.getMonth() + 1)}-${pad(echDate.getDate())}`;
+
+                const monthLabel = baseDate.toLocaleDateString('fr-FR', { month: 'long' });
+                const yearLabel = baseDate.getFullYear();
+
+                let initialLignes = [];
+                if (cObj.servicesRecurrents && cObj.servicesRecurrents.length > 0) {
+                    // Si des services détaillés existent, on les utilise en priorité
+                    initialLignes = cObj.servicesRecurrents.map((srv, idx) => ({
+                        id: Date.now() + idx,
+                        desc: srv.desc.includes(monthLabel) ? srv.desc : `${srv.desc} (${monthLabel} ${yearLabel})`,
+                        qte: 1,
+                        prix: parseFloat(srv.prix) || 0
+                    }));
+                } else if (cObj.montantMensuel) {
+                    // Sinon on utilise le forfait de base
+                    initialLignes = [{
+                        id: Date.now(),
+                        desc: `Abonnement ${monthLabel} ${yearLabel} - ${cObj.projet || 'Prestations'}`,
+                        qte: 1,
+                        prix: cObj.montantMensuel || 0
+                    }];
+                }
+
+                initialState.lignes = initialLignes;
+            }
+        }
+
+        return initialState;
+    };
+
+    const [init] = useState(getInitialState);
+
+    const [client, setClient] = useState(init.client);
+    const [dateEmi, setDateEmi] = useState(init.dateEmi);
+    const [echeance, setEcheance] = useState(init.echeance);
+    const [periodeDebut, setPeriodeDebut] = useState(init.periodeDebut);
+    const [periodeFin, setPeriodeFin] = useState(init.periodeFin);
+    const [lignes, setLignes] = useState(init.lignes);
+    const [conditions, setConditions] = useState(init.conditions);
+    const [applyTva, setApplyTva] = useState(init.applyTva);
+    const [applyTimbre, setApplyTimbre] = useState(init.applyTimbre);
+    const [isExonore, setIsExonore] = useState(init.isExonore);
+    const [notes, setNotes] = useState(init.notes);
+    const [statut, setStatut] = useState(init.statut);
+    
     const [numeroGlobal, setNumeroGlobal] = useState('');
     const [numeroClient, setNumeroClient] = useState('');
     const [derniereFacture, setDerniereFacture] = useState('');
     const [isIdManual, setIsIdManual] = useState(false);
 
-    // NOUVELLES VARIABLES POUR LA FACTURE EXTRA
-    const [isExtra, setIsExtra] = useState(false);
-    const [coutExtra, setCoutExtra] = useState(0);
-    const [ressourceExtra, setRessourceExtra] = useState('');
+    const [isExtra, setIsExtra] = useState(init.isExtra);
+    const [coutExtra, setCoutExtra] = useState(init.coutExtra);
+    const [ressourceExtra, setRessourceExtra] = useState(init.ressourceExtra);
 
-    // NOUVEAUX ÉTATS POUR LA SÉLECTION HIÉRARCHIQUE DE SERVICES
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedServiceId, setSelectedServiceId] = useState('');
-
-    const [selectedMonth, setSelectedMonth] = useState('');
-
-    const [servicesList, setServicesList] = useState([]);
-    const [clientsList, setClientsList] = useState([]);
-
-    useEffect(() => {
-        if (isOpen) {
-            setServicesList(loadConfig('services', initialServices));
-
-            let loadedClients = [];
-            try {
-                loadedClients = getClients();
-                setClientsList(loadedClients);
-            } catch (e) {
-                console.error("Erreur de chargement des clients", e);
-            }
-
-            if (factureToEdit) {
-                setClient(factureToEdit.clientId || '');
-                setDateEmi(factureToEdit.dateEmi || new Date().toISOString().split('T')[0]);
-                setEcheance(factureToEdit.echeance !== 'N/A' ? factureToEdit.echeance : '');
-                setPeriodeDebut(factureToEdit.periodeDebut || '');
-                setPeriodeFin(factureToEdit.periodeFin || '');
-                setStatut(factureToEdit.statut || 'Draft');
-                setLignes(factureToEdit.lignes && factureToEdit.lignes.length > 0 ? factureToEdit.lignes : []);
-                setConditions(factureToEdit.conditions || 'Standard');
-                setApplyTva(factureToEdit.tva > 0);
-                setApplyTimbre(factureToEdit.timbre > 0);
-                setIsExonore(factureToEdit.isExonore || false);
-                setNotes(factureToEdit.notes || '');
-                setIsIdManual(false);
-                setIsExtra(factureToEdit.isExtra || false);
-                setCoutExtra(factureToEdit.coutExtra || 0);
-                setRessourceExtra(factureToEdit.ressourceExtra || '');
-            } else if (initialClientName) {
-                setClient(initialClientName);
-                setDateEmi(new Date().toISOString().split('T')[0]);
-                setEcheance('');
-                setPeriodeDebut('');
-                setPeriodeFin('');
-                setStatut('Draft');
-                setLignes([]);
-                setConditions('Standard');
-                setApplyTva(true);
-                setApplyTimbre(true);
-                setIsExonore(false);
-                setNotes('');
-                setIsIdManual(false);
-                setIsExtra(false);
-                setCoutExtra(0);
-                setRessourceExtra('');
-                setSelectedMonth('');
-
-                // Auto-trigger automation if client matches
-                const cObj = loadedClients.find(c => c.id === initialClientName);
-                if (cObj && cObj.regime === 'Abonnement') {
-                    // We call the logic manually here as handleAutomateSubscription depends on state which isn't updated yet
-                    const baseDate = targetDate
-                        ? new Date(targetDate.year, targetDate.month, 1) // Start of target month
-                        : new Date();
-
-                    let cycleDay = 1;
-                    if (targetDate && targetDate.cycleDay) {
-                        cycleDay = targetDate.cycleDay;
-                    } else if (cObj) {
-                        if (cObj.modeCycle === 'Du 15 au 14') cycleDay = 15;
-                        else if ((cObj.modeCycle === "Date de début" || cObj.modeCycle === "Date d'entrée") && cObj.dateDebut) {
-                            const d = new Date(cObj.dateDebut);
-                            if (!isNaN(d.getTime())) cycleDay = d.getDate();
-                        } else if (cObj.modeCycle === 'Personnalisé' && cObj.jourCycle) {
-                            cycleDay = parseInt(cObj.jourCycle, 10);
-                        } else {
-                            if (cObj.jourFacturation) cycleDay = parseInt(cObj.jourFacturation, 10);
-                            else if (cObj.dateDebut) {
-                                const d = new Date(cObj.dateDebut);
-                                if (!isNaN(d.getTime())) cycleDay = d.getDate();
-                            } else if (cObj.jourPaiement) cycleDay = parseInt(cObj.jourPaiement, 10) || 1;
-                        }
-                    }
-                    if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
-
-                    const pad = (n) => n.toString().padStart(2, '0');
-
-                    // NEW LOGIC: Billing period based on targetMonth and cycleDay
-                    const firstD = new Date(baseDate.getFullYear(), baseDate.getMonth(), cycleDay);
-                    const lastD = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, cycleDay - 1);
-
-                    const fDPad = `${firstD.getFullYear()}-${pad(firstD.getMonth() + 1)}-${pad(firstD.getDate())}`;
-                    const lDPad = `${lastD.getFullYear()}-${pad(lastD.getMonth() + 1)}-${pad(lastD.getDate())}`;
-
-                    setPeriodeDebut(fDPad);
-                    setPeriodeFin(lDPad);
-                    setDateEmi(lDPad); // La date d'émission correspond toujours à la date de fin
-                    
-                    // Calcul de l'échéance basé sur le Délai Paiement (nouveau) ou la logique d'Abonnement (ancien)
-                    let echDate;
-                    if (cObj && cObj.delaiPaiement) {
-                        echDate = new Date(lastD);
-                        echDate.setDate(echDate.getDate() + parseInt(cObj.delaiPaiement, 10));
-                    } else {
-                        const jourP = cObj.jourPaiement || 5;
-                        echDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 2, jourP);
-                    }
-                    setEcheance(`${echDate.getFullYear()}-${pad(echDate.getMonth() + 1)}-${pad(echDate.getDate())}`);
-
-                    setLignes([
-                        { id: Date.now(), desc: `Abonnement Mensuel - ${cObj.projet || 'Prestations'}`, qte: 1, prix: cObj.montantMensuel || 0 },
-                        ...(cObj.servicesRecurrents || []).map((srv, idx) => ({
-                            id: Date.now() + idx + 1,
-                            desc: srv.desc,
-                            qte: 1,
-                            prix: parseFloat(srv.prix) || 0
-                        }))
-                    ]);
-                }
-            } else {
-                setClient('');
-                setDateEmi(new Date().toISOString().split('T')[0]);
-                setEcheance('');
-                setPeriodeDebut('');
-                setPeriodeFin('');
-                setStatut('Draft');
-                setLignes([]);
-                setConditions('Standard');
-                setApplyTva(true);
-                setApplyTimbre(true);
-                setIsExonore(false);
-                setNotes('');
-                setIsExtra(false);
-                setCoutExtra(0);
-                setRessourceExtra('');
-            }
-        }
-    }, [isOpen, factureToEdit]);
+    const [selectedMonth, setSelectedMonth] = useState(init.selectedMonth);
+    const [compteEncaissement, setCompteEncaissement] = useState(factureToEdit?.compteEncaissement || 'BIAT');
+    const [datePaiement, setDatePaiement] = useState(factureToEdit?.datePaiement || new Date().toISOString().split('T')[0]);
 
     // NEW LOGIC: Auto-fill dates based on Client & Selected Month
     // NEW LOGIC: Auto-fill dates based on Selected Month (and Client if applicable)
@@ -256,7 +251,9 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
             let allFactures = [];
             try {
                 allFactures = getFactures();
-            } catch (e) { }
+            } catch {
+                // Ignore parsing errors
+            }
 
             const selectedClientObj = clientsList.find(c => c.id === client);
             const isSousTVA = selectedClientObj ? selectedClientObj.sousTVA : true;
@@ -289,8 +286,10 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                         }
                         setApplyTva(false);
                         setApplyTimbre(false);
+                        setCompteEncaissement('QNB'); // Default for non-declared
                     } else {
                         // VAT Factures - simulate what the backend (FacturesPage) will assign
+                        setCompteEncaissement('BIAT'); // Default for declared
                         // Sorting by dateEmi then seniority
                         const vatFactures = allFactures.filter(f => f.tva > 0 || (f.id && /^N\d{2}-\d{4}-\d{3}$/.test(f.id)) || (f.id && f.id.startsWith('INV-')));
                         const currentYear = new Date(dateEmi || new Date()).getFullYear();
@@ -307,7 +306,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                                 }
                             }
                         });
-                        const globalCount = maxGlobal + 1;
+                        const globalCount = (currentYear === 2026 && maxGlobal === 0 && (client !== 'default-Globaleep' && client !== 'Globaleep')) ? 2 : maxGlobal + 1;
 
                         let maxClient = 0;
                         if (client) {
@@ -337,7 +336,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                 }
             }
         }
-    }, [isOpen, client, dateEmi, factureToEdit, clientsList, isIdManual]);
+    }, [isOpen, client, dateEmi, factureToEdit, clientsList, isIdManual, periodeDebut]);
 
     const selectedClientObj = clientsList.find(c => c.enseigne === client);
     const isAbonnement = selectedClientObj && selectedClientObj.regime === 'Abonnement';
@@ -346,32 +345,33 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
         const clientObj = clientsList.find(c => c.id === client);
         if (!clientObj) return;
 
+        const now = new Date();
+        let targetM = now.getMonth();
+        let targetY = now.getFullYear();
+        if (selectedMonth) {
+            targetM = parseInt(selectedMonth, 10) - 1;
+        }
+
+        const monthLabel = new Date(targetY, targetM, 1).toLocaleDateString('fr-FR', { month: 'long' });
         const newLignes = [];
         let timeId = Date.now();
-
-        if (clientObj.regime === 'Abonnement' && clientObj.montantMensuel) {
-            newLignes.push({
-                id: timeId++,
-                desc: `Abonnement Mensuel - ${clientObj.projet || 'Prestations'}`,
-                qte: 1,
-                prix: clientObj.montantMensuel || 0
-            });
-        }
 
         if (clientObj.servicesRecurrents && clientObj.servicesRecurrents.length > 0) {
             clientObj.servicesRecurrents.forEach(srv => {
                 newLignes.push({
                     id: timeId++,
-                    desc: srv.desc,
+                    desc: srv.desc.includes(monthLabel) ? srv.desc : `${srv.desc} (${monthLabel} ${targetY})`,
                     qte: 1,
                     prix: parseFloat(srv.prix) || 0
                 });
             });
-        }
-
-        if (newLignes.length === 0) {
-            alert("❗ Aucune prestation récurrente ni montant mensuel trouvés pour ce client dans sa fiche.");
-            return;
+        } else if (clientObj.montantMensuel) {
+            newLignes.push({
+                id: timeId++,
+                desc: `Abonnement ${monthLabel} ${targetY} - ${clientObj.projet || 'Prestations'}`,
+                qte: 1,
+                prix: clientObj.montantMensuel || 0
+            });
         }
 
         setLignes(newLignes);
@@ -413,21 +413,30 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        // VALIDATIONS
-        if (totalTTC < 0) {
-            alert("❗ Opération refusée.\nLe montant total de la facture ne peut pas être négatif.");
-            return;
-        }
-
-        if (periodeDebut && periodeFin) {
-            if (new Date(periodeFin) < new Date(periodeDebut)) {
-                alert("❗ Opération refusée.\nLa date de fin de période ne peut pas être antérieure à la date de début.");
-                return;
-            }
-        }
-
         const currentClientObj = clientsList.find(c => c.id === client);
         const clientName = currentClientObj ? currentClientObj.enseigne : 'Client Inconnu';
+
+        // 1. DUPLICATE PERIOD CHECK
+        const allFactures = getFactures();
+        const duplicatePeriod = allFactures.find(f => 
+            f.clientId === client && 
+            f.periodeDebut === periodeDebut && 
+            f.periodeFin === periodeFin &&
+            f.id !== factureToEdit?.id && // Exclude self if editing
+            f.statut !== 'Archived' // Archived ones might be duplicates/corrections
+        );
+
+        if (duplicatePeriod) {
+            const confirmDup = window.confirm(`⚠️ Attention : Une facture existe déjà pour ${clientName} sur la période du ${periodeDebut} au ${periodeFin} (${duplicatePeriod.id}).\n\nSouhaitez-vous vraiment créer un doublon pour cette période ?`);
+            if (!confirmDup) return;
+        }
+
+        // 2. ID UNIQUENESS GUARD
+        const existingWithId = allFactures.find(f => f.id === numeroGlobal && f.id !== factureToEdit?.id);
+        if (existingWithId) {
+            alert(`❗ Erreur Critique : Le numéro de facture "${numeroGlobal}" est déjà utilisé.\nL'enregistrement est bloqué pour éviter tout saut ou doublon de numérotation.`);
+            return;
+        }
 
         const nouvelleFacture = {
             ...(factureToEdit || {}), // Preserve historical data like 'paiements', 'datePaiement'
@@ -450,7 +459,9 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
             isExtra,
             coutExtra: isExtra ? coutExtra : 0,
             ressourceExtra: isExtra ? ressourceExtra : '',
-            manualId: isIdManual
+            manualId: isIdManual,
+            datePaiement: statut === 'Paid' ? datePaiement : null,
+            compteEncaissement: compteEncaissement
         };
         onSave(nouvelleFacture);
         onClose();
@@ -506,7 +517,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                             <div>
                                 <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     Informations Générales
-                                    {numeroGlobal && <span style={{ fontSize: '11px', color: '#10B981', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>{(numeroGlobal === 'non déclarée' || numeroGlobal.startsWith('ND-')) ? 'non déclarée' : numeroGlobal}</span>}
+                                    {numeroGlobal && <span style={{ fontSize: '11px', color: '#10B981', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '2px 6px', borderRadius: '4px' }}>{(numeroGlobal === 'non déclarée' || numeroGlobal.startsWith('ND-')) ? 'ND' : numeroGlobal}</span>}
                                 </h3>
                                 {numeroClient && <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', fontStyle: 'italic' }}>{numeroClient}</div>}
                             </div>
@@ -516,7 +527,11 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                                 <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)' }}>Client *</label>
                                 <select required value={client} onChange={e => setClient(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px' }}>
                                     <option value="">Sélectionner un client</option>
-                                    {clientsList.map(c => <option key={c.id} value={c.id}>{c.enseigne}</option>)}
+                                    {clientsList.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.enseigne} {c.sousTVA === false ? '(ND)' : ''}
+                                        </option>
+                                    ))}
                                 </select>
                                 {selectedClientObj?.dateDebut && (
                                     <span style={{ fontSize: '9px', color: 'var(--info)', marginTop: '-2px', fontStyle: 'italic', fontWeight: '600' }}>
@@ -690,7 +705,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {lignes.map((ligne, index) => (
+                            {lignes.map((ligne) => (
                                 <div key={ligne.id} style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                                     <div style={{ flex: 3 }}>
                                         <input list="services-list-facture" type="text" placeholder="Sélectionnez ou tapez..." required value={ligne.desc} onChange={e => updateLigne(ligne.id, 'desc', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px' }} />
@@ -786,6 +801,27 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                                     <option value="Paid">✅ Marquer comme Payée</option>
                                 </select>
                             </div>
+
+                            {/* PAYMENT DETAILS (Conditional) */}
+                            {statut === 'Paid' && (
+                                <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(16, 185, 129, 0.05)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.2)', animation: 'slideDown 0.3s ease-out' }}>
+                                    <style>{`@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--success)' }}>📅 DATE PAIEMENT</label>
+                                            <input type="date" value={datePaiement} onChange={e => setDatePaiement(e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '11px' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--success)' }}>🏦 COMPTE BANCAIRE</label>
+                                            <select value={compteEncaissement} onChange={e => setCompteEncaissement(e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '11px', fontWeight: '600' }}>
+                                                <option value="BIAT">BIAT (Déclaré)</option>
+                                                <option value="QNB">QNB (Perso/ND)</option>
+                                                <option value="Espèces">Espèces (Cash)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                     </div>

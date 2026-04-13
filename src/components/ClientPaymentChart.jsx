@@ -96,66 +96,6 @@ const ClientPaymentChart = () => {
         };
     }, []);
 
-    // Custom Tooltip for the Scatter points
-    const CustomTooltip = ({ active, payload }) => {
-        if (active && payload && payload.length) {
-            const data = payload[0].payload;
-            let statusText = '';
-            let statusColor = '';
-
-            switch (data.status) {
-                case 1:
-                    statusText = 'Payée';
-                    statusColor = 'var(--success)';
-                    break;
-                case 2:
-                    statusText = 'Envoyée (En attente)';
-                    statusColor = 'var(--warning)';
-                    break;
-                case -1:
-                    statusText = 'Impayée / En retard';
-                    statusColor = 'var(--danger)';
-                    break;
-                case -2:
-                    statusText = 'Oubli (Non facturé)';
-                    statusColor = '#000000'; // Black
-                    break;
-                default:
-                    statusText = 'Inconnu';
-                    statusColor = 'var(--text-muted)';
-            }
-
-            return (
-                <div style={{
-                    background: 'var(--card-bg)',
-                    backdropFilter: 'var(--glass-blur)',
-                    WebkitBackdropFilter: 'var(--glass-blur)',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    boxShadow: 'var(--card-shadow)',
-                    color: 'var(--text-main)',
-                    fontSize: '13px'
-                }}>
-                    <strong>{data.clientName}</strong><br />
-                    Mois: {data.month}<br />
-                    Statut: <span style={{ color: statusColor, fontWeight: 'bold' }}>{statusText}</span>
-                </div>
-            );
-        }
-        return null;
-    };
-
-    const getDotColor = (status) => {
-        switch (status) {
-            case 1: return 'var(--success)';
-            case 2: return 'var(--warning)';
-            case -1: return 'var(--danger)';
-            case -2: return '#0f172a'; // Near black, nicely fits the UI
-            default: return 'transparent';
-        }
-    };
-
     return (
         <div className="card" style={{ marginBottom: '24px', padding: '16px' }}>
             <h3 style={{ fontSize: '14px', marginBottom: '4px', color: 'var(--text-main)' }}>Paiements Clients</h3>
@@ -220,6 +160,66 @@ const ClientPaymentChart = () => {
             )}
         </div>
     );
+};
+
+const getDotColor = (status) => {
+    switch (status) {
+        case 1: return 'var(--success)';
+        case 2: return 'var(--warning)';
+        case -1: return 'var(--danger)';
+        case -2: return '#0f172a'; // Near black, nicely fits the UI
+        default: return 'transparent';
+    }
+};
+
+// Custom Tooltip for the Scatter points
+const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        let statusText = '';
+        let statusColor = '';
+
+        switch (data.status) {
+            case 1:
+                statusText = 'Payée';
+                statusColor = 'var(--success)';
+                break;
+            case 2:
+                statusText = 'Envoyée (En attente)';
+                statusColor = 'var(--warning)';
+                break;
+            case -1:
+                statusText = 'Impayée / En retard';
+                statusColor = 'var(--danger)';
+                break;
+            case -2:
+                statusText = 'Oubli (Non facturé)';
+                statusColor = '#000000'; // Black
+                break;
+            default:
+                statusText = 'Inconnu';
+                statusColor = 'var(--text-muted)';
+        }
+
+        return (
+            <div style={{
+                background: 'var(--card-bg)',
+                backdropFilter: 'var(--glass-blur)',
+                WebkitBackdropFilter: 'var(--glass-blur)',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                boxShadow: 'var(--card-shadow)',
+                color: 'var(--text-main)',
+                fontSize: '13px'
+            }}>
+                <strong>{data.clientName}</strong><br />
+                Mois: {data.month}<br />
+                Statut: <span style={{ color: statusColor, fontWeight: 'bold' }}>{statusText}</span>
+            </div>
+        );
+    }
+    return null;
 };
 
 export default ClientPaymentChart;

@@ -7,10 +7,10 @@ const FlowArrow = () => (
     </div>
 );
 
-const ModuleCard = ({ icon: Icon, title, content, color }) => (
+const ModuleCard = ({ title, content, color }) => (
     <div style={{ background: 'var(--bg-main)', border: `2px solid ${color}`, borderRadius: '12px', padding: '16px', flex: '1 1 200px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', borderBottom: `1px solid ${color}40`, paddingBottom: '8px' }}>
-            <div style={{ background: `${color}20`, padding: '6px', borderRadius: '8px' }}><Icon size={20} color={color} /></div>
+            <div style={{ background: `${color}20`, padding: '6px', borderRadius: '8px' }}></div>
             <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: 'var(--text-main)' }}>{title}</h4>
         </div>
         <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
@@ -19,11 +19,10 @@ const ModuleCard = ({ icon: Icon, title, content, color }) => (
     </div>
 );
 
-const SectionBlock = ({ title, icon: Icon, children }) => (
+const SectionBlock = ({ title, children }) => (
     <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '2px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
             <div style={{ background: 'var(--primary-color)', color: 'white', padding: '8px', borderRadius: '10px' }}>
-                <Icon size={20} />
             </div>
             <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: 'var(--text-main)' }}>{title}</h3>
         </div>
