@@ -12,6 +12,20 @@ dist
 dist-ssr
 *.local
 
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Server
+server/node_modules
+server/.env
+server/prisma/migrations/*.sql
+# Keep the migrations structure but maybe ignore the actual SQL if sensitive, 
+# but usually migrations are kept. I'll keep them.
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,3 +36,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Scratch
+scratch/
+server/scratch_*.js
+server/find_duplicates.js
+server/cleanup_kindy.js
+server/check_kindy_client.js
+server/update_kindy_tva.js

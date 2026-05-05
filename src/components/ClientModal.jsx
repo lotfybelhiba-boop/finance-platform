@@ -11,6 +11,8 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
     const [secteur, setSecteur] = useState(initialData?.secteur || '');
     const [etatClient, setEtatClient] = useState(initialData?.etatClient || 'Actif');
     const [charge, setCharge] = useState(initialData?.charge || '');
+    const [nomFinancier, setNomFinancier] = useState(initialData?.nomFinancier || '');
+    const [emailFinancier, setEmailFinancier] = useState(initialData?.emailFinancier || '');
     const [dateDebut, setDateDebut] = useState(initialData?.dateDebut || '');
     const [mf, setMf] = useState(initialData?.mf || '');
     const [mail, setMail] = useState(initialData?.mail || '');
@@ -18,6 +20,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
     const [adresse, setAdresse] = useState(initialData?.adresse || '');
     const [dateFin, setDateFin] = useState(initialData?.dateFin || '');
     const [bonCommande, setBonCommande] = useState(initialData?.bonCommande || '');
+    const [option15Jours, setOption15Jours] = useState(initialData?.option15Jours || ''); // '' | 'espece' | 'cadeau'
 
     // Champs Régime & Facturation
     const [regime, setRegime] = useState(initialData?.regime || 'Abonnement');
@@ -38,7 +41,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
     });
     const [projectCosts, setProjectCosts] = useState(() => {
         if (initialData?.projectCosts && initialData.projectCosts.length > 0) return initialData.projectCosts;
-        return [{ id: 1, nom: '', specialite: '', montant: '' }];
+        return [{ id: 1, nom: '', specialite: '', montant: '', dateDebut: initialData?.dateDebut || '', dateFin: '' }];
     });
 
     const [dureeService, setDureeService] = useState(initialData?.dureeService || '');
@@ -61,7 +64,24 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
         }));
     };
 
-    const handleAddCost = () => setProjectCosts([...projectCosts, { id: Date.now(), nom: '', specialite: '', montant: '' }]);
+    const handleAddCost = () => setProjectCosts([...projectCosts, { 
+        id: Date.now(), 
+        nom: '', 
+        specialite: '', 
+        montant: '', 
+        dateDebut: dateDebut || new Date().toISOString().split('T')[0],
+        dateFin: '' 
+    }]);
+    
+    // Auto-migration for legacy entries without dates
+    useEffect(() => {
+        if (isOpen && projectCosts.length > 0 && !projectCosts[0].dateDebut) {
+            setProjectCosts(projectCosts.map(c => ({
+                ...c,
+                dateDebut: c.dateDebut || dateDebut || new Date().toISOString().split('T')[0]
+            })));
+        }
+    }, [isOpen]);
     const handleRemoveCost = (id) => projectCosts.length > 1 && setProjectCosts(projectCosts.filter(c => c.id !== id));
     const updateCost = (id, field, value) => {
         setProjectCosts(projectCosts.map(c => {
@@ -120,6 +140,8 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
             secteur,
             etatClient,
             charge,
+            nomFinancier,
+            emailFinancier,
             dateDebut,
             mf,
             mail,
@@ -137,13 +159,16 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
             montantTotal: regime === 'One-Shot' ? montantTotal : null,
             datePaiement: regime === 'One-Shot' ? datePaiementOneShot : null,
             // Nettoyer les listes vides avant de sauvegarder
-            servicesRecurrents: regime === 'Abonnement' ? servicesRecurrents.filter(s => s.desc.trim() !== '') : [],
+            servicesRecurrents: regime === 'Abonnement'
+                ? servicesRecurrents.filter(s => s.desc.trim() !== '')
+                : servicesRecurrents.filter(s => s.desc.trim() !== ''),
             projectCosts: projectCosts.filter(c => c.nom.trim() !== '' && c.montant !== ''),
             totalCosts,
             netMargin,
             dureeService,
             sousTVA,
-            employeAssocie
+            employeAssocie,
+            option15Jours: (modeCycle === 'Mois civil (1er au 31)' && dateDebut && dateDebut.endsWith('-15')) ? option15Jours : ''
         };
 
         onSave(newClient);
@@ -155,6 +180,8 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
         setSecteur('');
         setEtatClient('Actif');
         setCharge('');
+        setNomFinancier('');
+        setEmailFinancier('');
         setDateDebut('');
         setMf('');
         setMail('');
@@ -172,10 +199,11 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
         setMontantTotal('');
         setDatePaiementOneShot('');
         setServicesRecurrents([{ id: 1, desc: '' }]);
-        setProjectCosts([{ id: 1, nom: '', specialite: '', montant: '' }]);
+        setProjectCosts([{ id: 1, nom: '', specialite: '', montant: '', recurrence: 'Mensuel' }]);
         setDureeService('');
         setSousTVA(false);
         setEmployeAssocie('');
+        setOption15Jours('');
 
         onClose();
     };
@@ -296,8 +324,16 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                         </select>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Personne du client en charge</label>
+                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }} title="Utilisé pour l'envoi si aucun financier n'est défini">Contact Principal (Vis à vis)</label>
                                         <input type="text" value={charge} onChange={e => setCharge(e.target.value)} placeholder="Nom du contact" style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '500', width: '100%', boxSizing: 'border-box' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Nom du Financier</label>
+                                        <input type="text" value={nomFinancier} onChange={e => setNomFinancier(e.target.value)} placeholder="Responsable financier" style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '500', width: '100%', boxSizing: 'border-box' }} />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email du Financier</label>
+                                        <input type="email" value={emailFinancier} onChange={e => setEmailFinancier(e.target.value)} placeholder="Destinataire factures" style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '500', width: '100%', boxSizing: 'border-box' }} />
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bon de Commande</label>
@@ -362,18 +398,28 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                         </div>
                                     )}
 
-                                    {modeCycle === 'Personnalisé' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Jour Paiement (1-31)</label>
-                                            <input type="number" min="1" max="31" value={jourPaiement} onChange={e => setJourPaiement(e.target.value)} placeholder="5" required={regime === 'Abonnement'} style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} />
-                                        </div>
-                                    )}
-
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', gridColumn: 'span 3', marginTop: '8px' }}>
                                         <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Délai de Paiement à Réception (Jours)</label>
                                         <input type="number" value={delaiPaiement} onChange={e => setDelaiPaiement(e.target.value)} placeholder="Ex: 30, 60, 90... (Vide = 48h)" style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} title="Ce délai calculera l'échéance par défaut de chaque facture générée" />
                                         <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>* Si laissé vide, la facture sera considérée en retard 48h après émission.</span>
                                     </div>
+
+                                    {/* Cas spécifique : Début le 15 + Cycle Civil */}
+                                    {modeCycle === 'Mois civil (1er au 31)' && dateDebut && dateDebut.endsWith('-15') && (
+                                        <div style={{ gridColumn: 'span 3', padding: '12px', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.1)', marginTop: '8px' }}>
+                                            <p style={{ fontSize: '11px', fontWeight: '700', color: 'var(--info)', marginBottom: '8px' }}>
+                                                ℹ️ Début le 15 du mois détecté avec cycle civil. Comment traiter les 15 premiers jours ?
+                                            </p>
+                                            <div style={{ display: 'flex', gap: '16px' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
+                                                    <input type="radio" value="espece" checked={option15Jours === 'espece'} onChange={() => setOption15Jours('espece')} style={{ accentColor: 'var(--info)' }} /> 15js payés en espèces
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
+                                                    <input type="radio" value="cadeau" checked={option15Jours === 'cadeau'} onChange={() => setOption15Jours('cadeau')} style={{ accentColor: 'var(--info)' }} /> 15js offerts (cadeau)
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Services in Abonnement */}
                                     <div style={{ gridColumn: 'span 3', borderTop: '1px dashed rgba(15,23,42,0.1)', paddingTop: '16px', marginTop: '4px' }}>
@@ -403,19 +449,102 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                         </div>
                                     </div>
                                 </div>
-                            ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr)', gap: '12px' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Durée (Mois)</label>
-                                        <input type="number" min="1" value={dureeMois} onChange={e => setDureeMois(e.target.value)} placeholder="3" required={regime === 'One-Shot'} style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '14px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} />
+                ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                    {/* Row 1: Durée + Dates */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Durée (Mois)</label>
+                                            <input type="number" min="1" value={dureeMois} onChange={e => setDureeMois(e.target.value)} placeholder="3" style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date Fin Projet</label>
+                                            <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date Cible Paiement</label>
+                                            <input type="date" value={datePaiementOneShot} onChange={e => setDatePaiementOneShot(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} />
+                                        </div>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Montant Total</label>
-                                        <input type="number" step="0.001" value={montantTotal} onChange={e => setMontantTotal(e.target.value)} placeholder="0.000" required={regime === 'One-Shot'} style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '14px', fontWeight: '700', width: '100%', boxSizing: 'border-box' }} />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date Cible Paiement</label>
-                                        <input type="date" value={datePaiementOneShot} onChange={e => setDatePaiementOneShot(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: 'none', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '13px', fontWeight: '600', width: '100%', boxSizing: 'border-box' }} />
+
+                                    {/* Row 2: Services list */}
+                                    <div style={{ borderTop: '1px dashed rgba(15,23,42,0.1)', paddingTop: '12px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                            <span style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📋 Livrables & Services</span>
+                                            <button type="button" onClick={handleAddService} style={{ fontSize: '10px', padding: '3px 8px', border: 'none', color: '#B45309', background: 'rgba(255,193,5,0.1)', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <Plus size={11} /> Ajouter
+                                            </button>
+                                        </div>
+                                        <datalist id="services-list-oneshot">
+                                            {servicesList.map(s => <option key={s.id} value={s.nom}></option>)}
+                                        </datalist>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            {servicesRecurrents.map((service) => (
+                                                <div key={service.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '6px', alignItems: 'center' }}>
+                                                    <input
+                                                        list="services-list-oneshot"
+                                                        type="text"
+                                                        placeholder="Service ou livrable..."
+                                                        value={service.desc}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            const found = servicesList.find(s => s.nom === val);
+                                                            updateService(service.id, 'desc', val);
+                                                            if (found && !service.prix) updateService(service.id, 'prix', found.prix);
+                                                        }}
+                                                        style={{ padding: '6px 10px', borderRadius: '7px', border: 'none', background: 'var(--card-bg)', fontSize: '12px', fontWeight: '500', width: '100%', boxSizing: 'border-box' }}
+                                                    />
+                                                    <div style={{ position: 'relative', width: '90px' }}>
+                                                        <input
+                                                            type="number"
+                                                            step="0.001"
+                                                            placeholder="0.000"
+                                                            value={service.prix}
+                                                            onChange={e => updateService(service.id, 'prix', e.target.value)}
+                                                            style={{ padding: '6px 28px 6px 8px', borderRadius: '7px', border: 'none', background: 'var(--card-bg)', fontSize: '12px', fontWeight: '700', width: '100%', boxSizing: 'border-box' }}
+                                                        />
+                                                        <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--text-muted)', fontWeight: '700', pointerEvents: 'none' }}>TND</span>
+                                                    </div>
+                                                    <button type="button" onClick={() => handleRemoveService(service.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', opacity: servicesRecurrents.length > 1 ? 1 : 0.3, cursor: servicesRecurrents.length > 1 ? 'pointer' : 'not-allowed', padding: '4px', display: 'flex', alignItems: 'center' }}>
+                                                        <Trash2 size={13} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Auto-computed total */}
+                                        {(() => {
+                                            const servicesTotal = servicesRecurrents.reduce((s, r) => s + (parseFloat(r.prix) || 0), 0);
+                                            return servicesTotal > 0 ? (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', padding: '8px 12px', background: 'rgba(255,193,5,0.07)', borderRadius: '8px', border: '1px solid rgba(255,193,5,0.2)' }}>
+                                                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#B45309', textTransform: 'uppercase' }}>Total services</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-main)' }}>{servicesTotal.toFixed(3)} TND</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setMontantTotal(servicesTotal.toFixed(3))}
+                                                            style={{ fontSize: '9px', padding: '2px 8px', border: 'none', background: '#B45309', color: '#fff', borderRadius: '5px', cursor: 'pointer', fontWeight: '700', whiteSpace: 'nowrap' }}
+                                                        >
+                                                            Appliquer → Montant Total
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : null;
+                                        })()}
+
+                                        {/* Montant total override */}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
+                                            <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Montant Total Facturé (override)</label>
+                                            <input
+                                                type="number"
+                                                step="0.001"
+                                                value={montantTotal}
+                                                onChange={e => setMontantTotal(e.target.value)}
+                                                placeholder="Auto-calculé depuis les services"
+                                                required={regime === 'One-Shot'}
+                                                style={{ padding: '8px 12px', borderRadius: '8px', border: '1px dashed rgba(255,193,5,0.4)', background: 'var(--card-bg)', color: 'var(--text-main)', fontSize: '14px', fontWeight: '700', width: '100%', boxSizing: 'border-box' }}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             )}
@@ -431,15 +560,18 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                             </div>
 
                             <div style={{ display: 'flex', gap: '8px', padding: '0 8px 4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                <div style={{ flex: 1.5 }}>Ressource RH</div>
-                                <div style={{ flex: 1.5 }}>Spécialité</div>
-                                <div style={{ flex: 1 }}>Coût (HT)</div>
+                                <div style={{ flex: 1.2 }}>Ressource RH</div>
+                                <div style={{ flex: 0.8 }}>Spécialité</div>
+                                <div style={{ flex: 0.8 }}>Type</div>
+                                <div style={{ flex: 1 }}>Validité (Du)</div>
+                                <div style={{ flex: 1 }}>Au (Optionnel)</div>
+                                <div style={{ flex: 0.8 }}>Coût (HT)</div>
                                 <div style={{ width: '30px' }}></div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
                                 {projectCosts.map((cost) => (
                                     <div key={cost.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        <div style={{ flex: 1.5 }}>
+                                        <div style={{ flex: 1.2 }}>
                                             {rhList && rhList.length > 0 ? (
                                                 <select value={cost.nom || ''} onChange={e => {
                                                     const val = e.target.value;
@@ -450,7 +582,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                                         }
                                                         return c;
                                                     }));
-                                                }} style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px', fontWeight: '600', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}>
+                                                }} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', fontWeight: '600', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}>
                                                     <option value="">-- Assigner --</option>
                                                     {rhList.map(r => (
                                                         <option key={r.id} value={r.nom}>{r.nom}</option>
@@ -458,12 +590,12 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                                     <option value="Autre externe">Externe / Autre</option>
                                                 </select>
                                             ) : (
-                                                <input type="text" placeholder="RH" value={cost.nom || ''} onChange={e => updateCost(cost.id, 'nom', e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px', fontWeight: '500', boxSizing: 'border-box' }} />
+                                                <input type="text" placeholder="RH" value={cost.nom || ''} onChange={e => updateCost(cost.id, 'nom', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', fontWeight: '500', boxSizing: 'border-box' }} />
                                             )}
                                         </div>
-                                        <div style={{ flex: 1.5 }}>
-                                            <select value={cost.specialite || ''} onChange={e => updateCost(cost.id, 'specialite', e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px', fontWeight: '500', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}>
-                                                <option value="">Sélectionner</option>
+                                        <div style={{ flex: 0.8 }}>
+                                            <select value={cost.specialite || ''} onChange={e => updateCost(cost.id, 'specialite', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', fontWeight: '500', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}>
+                                                <option value="">Spéc.</option>
                                                 <option value="CM">CM</option>
                                                 <option value="Design">Design</option>
                                                 <option value="Ads">Ads</option>
@@ -472,9 +604,20 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
                                                 <option value="Security">Security</option>
                                             </select>
                                         </div>
-                                        <div style={{ flex: 1, position: 'relative' }}>
-                                            <input type="number" step="0.001" placeholder="0.000" value={cost.montant || ''} onChange={e => updateCost(cost.id, 'montant', e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '13px', fontWeight: '700', paddingRight: '40px', boxSizing: 'border-box' }} />
-                                            <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '700' }}>TND</span>
+                                        <div style={{ flex: 0.8 }}>
+                                            <select value={cost.recurrence || 'Mensuel'} onChange={e => updateCost(cost.id, 'recurrence', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', fontWeight: '500', boxSizing: 'border-box', appearance: 'none', cursor: 'pointer' }}>
+                                                <option value="Mensuel">Mensuel</option>
+                                                <option value="Ponctuel">Ponctuel</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <input type="date" value={cost.dateDebut || ''} onChange={e => updateCost(cost.id, 'dateDebut', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', boxSizing: 'border-box' }} />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <input type="date" value={cost.dateFin || ''} onChange={e => updateCost(cost.id, 'dateFin', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', boxSizing: 'border-box' }} />
+                                        </div>
+                                        <div style={{ flex: 0.8 }}>
+                                            <input type="number" step="0.001" placeholder="0.000" value={cost.montant || ''} onChange={e => updateCost(cost.id, 'montant', e.target.value)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '11px', fontWeight: '700', boxSizing: 'border-box' }} />
                                         </div>
                                         <button type="button" onClick={() => handleRemoveCost(cost.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', opacity: projectCosts.length > 1 ? 1 : 0.3, cursor: projectCosts.length > 1 ? 'pointer' : 'not-allowed', padding: '6px' }}>
                                             <Trash2 size={14} />

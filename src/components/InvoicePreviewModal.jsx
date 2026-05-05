@@ -7,7 +7,56 @@ const InvoicePreviewModal = ({ isOpen, onClose, facture }) => {
     const [isExporting, setIsExporting] = useState(false);
 
     const handlePrint = () => {
+        const root = document.getElementById('root');
+        const originalInvoice = document.getElementById('invoice-document');
+        
+        if (!originalInvoice) return;
+
+        // Build standard filename for the Print Dialog's "Save as PDF" function
+        const dateEmi = facture.dateEmi || new Date().toISOString().split('T')[0];
+        const yearMonth = dateEmi.substring(0, 7); 
+        const suggestedFilename = `FACTURE_MYNDS_${yearMonth}_${facture.id || 'EXPORT'}`;
+        
+        // Temporarily change document title so browser uses it as default file name
+        const originalTitle = document.title;
+        document.title = suggestedFilename;
+
+        // 1. Create a dedicated print container completely outside the React DOM tree
+        // This escapes all the CSS transforms, blurs, and overflows of the modal.
+        const printContainer = document.createElement('div');
+        printContainer.id = 'temp-print-container';
+        printContainer.style.width = '210mm';
+        printContainer.style.backgroundColor = 'white';
+        printContainer.style.position = 'absolute';
+        printContainer.style.top = '0';
+        printContainer.style.left = '0';
+        printContainer.style.zIndex = '999999';
+        
+        // 2. Clone the invoice exactly as it appears
+        printContainer.appendChild(originalInvoice.cloneNode(true));
+        document.body.appendChild(printContainer);
+        
+        // 3. Inject a bulletproof print stylesheet
+        const style = document.createElement('style');
+        style.id = 'temp-print-style';
+        style.innerHTML = `
+            @media print {
+                body { margin: 0; padding: 0; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                #root { display: none !important; }
+                @page { size: A4 portrait; margin: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // 4. Trigger the native print dialog
         window.print();
+        
+        // 5. Cleanup after the print dialog captures the snapshot
+        setTimeout(() => {
+            document.title = originalTitle; // Restore original title
+            if (printContainer.parentNode) document.body.removeChild(printContainer);
+            if (style.parentNode) document.head.removeChild(style);
+        }, 1500);
     };
 
     const handleDownloadPDF = async () => {
@@ -22,12 +71,22 @@ const InvoicePreviewModal = ({ isOpen, onClose, facture }) => {
         }
     };
 
-    // Auto-trigger download if requested
+    // Auto-trigger actions if requested from external tables
     React.useEffect(() => {
-        if (isOpen && facture?.autoDownload) {
-            handleDownloadPDF();
+        if (isOpen && facture) {
+            if (facture.autoDownload) {
+                // Short delay ensures DOM and images are completely wired
+                setTimeout(() => {
+                    handleDownloadPDF();
+                }, 300);
+            } else if (facture.autoPrint) {
+                // Require a slight delay for modal CSS to settle before the native snapshot
+                setTimeout(() => {
+                    handlePrint();
+                }, 300);
+            }
         }
-    }, [isOpen, facture?.id, facture?.autoDownload]);
+    }, [isOpen, facture?.id]);
 
     if (!isOpen || !facture) return null;
 
@@ -154,55 +213,6 @@ const InvoicePreviewModal = ({ isOpen, onClose, facture }) => {
             <style>{`
                 .spin { animation: spin 1s linear infinite; }
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-                @media print {
-                    @page {
-                        size: A4 portrait;
-                        margin: 0;
-                    }
-                    html, body {
-                        height: 100% !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        background: white !important;
-                        overflow: hidden !important;
-                    }
-                    /* Hide EVERYTHING in the body */
-                    body * {
-                        visibility: hidden !important;
-                        box-shadow: none !important;
-                        border: none !important;
-                    }
-                    /* Force display and visibility for ONLY the invoice and its children */
-                    #invoice-document, #invoice-document * {
-                        visibility: visible !important;
-                        display: inherit !important;
-                    }
-                    /* Re-enable flex/grid/table for the invoice specifically */
-                    #invoice-document {
-                        display: flex !important;
-                        flex-direction: column !important;
-                        visibility: visible !important;
-                        position: fixed !important; /* Pin to top-left of page */
-                        left: 0 !important;
-                        top: 0 !important;
-                        width: 210mm !important;
-                        height: 296mm !important; /* Slightly less than 297 to avoid 2nd page */
-                        padding: 10mm 15mm !important;
-                        margin: 0 !important;
-                        background: white !important;
-                        z-index: 99999 !important;
-                        -webkit-print-color-adjust: exact !important;
-                        print-color-adjust: exact !important;
-                        overflow: hidden !important;
-                    }
-                    /* Specifically ensure table elements keep their display types */
-                    #invoice-document table { display: table !important; }
-                    #invoice-document thead { display: table-header-group !important; }
-                    #invoice-document tbody { display: table-row-group !important; }
-                    #invoice-document tr { display: table-row !important; }
-                    #invoice-document td, #invoice-document th { display: table-cell !important; }
-                }
             `}</style>
         </div>
     );

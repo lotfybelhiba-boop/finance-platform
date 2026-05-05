@@ -384,3 +384,135 @@ h6 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   z-index: 10;
 }
+
+/* High-End Clean Table Style - Ultra Compact */
+.clean-table-container {
+  overflow-x: auto;
+  background: #FFFFFF;
+}
+
+.clean-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+.clean-table th {
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 10px;
+  font-weight: 500; /* Subtle header */
+  color: #999999;
+  border-bottom: 1px solid #F5F5F5;
+  white-space: nowrap;
+}
+
+.clean-table td {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 400; /* No bold */
+  color: #222222;
+  border-bottom: 1px solid #F5F5F5;
+  transition: background-color 0.2s ease;
+}
+
+.clean-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.clean-table tbody tr:hover td {
+  background-color: #FAFAFA;
+}
+
+.clean-table th.text-right,
+.clean-table td.text-right {
+  text-align: right;
+}
+
+.clean-table th.text-center,
+.clean-table td.text-center {
+  text-align: center;
+}
+
+.clean-secondary-text {
+  color: #999999;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.clean-primary-text {
+  color: #222222;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* Status design (very subtle) */
+.status-paid {
+  color: #8DAB96; /* soft grey-green text */
+  font-weight: 400;
+}
+
+.status-pending {
+  color: #CCCCCC; /* light grey text */
+  font-weight: 400;
+}
+
+/* --- RH Specific Table Styling (Premium Mustard) --- */
+.rh-table-container {
+    max-height: 500px;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid #F0F0F0;
+    background: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+}
+
+.rh-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #FFFFFF;
+}
+
+.rh-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #FEF9EB; /* Very light mustard/yellow tint */
+    padding: 10px 12px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #B45309; /* Darker mustard for readability */
+    border-bottom: 1px solid #FDE68A;
+    text-align: left;
+}
+
+.rh-table tbody td {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: #374151;
+    border-bottom: 1px solid #F3F4F6;
+    transition: all 0.2s ease;
+}
+
+.rh-table tbody tr:nth-child(even) {
+    background-color: #FBFBFA; /* Extremely subtle zebra stripe */
+}
+
+.rh-table tbody tr:hover td {
+    background-color: #FFFBEB; /* Light mustard hover */
+}
+
+.rh-table .text-right { text-align: right; }
+.rh-table .text-center { text-align: center; }
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.status-dot.mustard { background-color: #D4A017; }
+.status-dot.grey { background-color: #E5E7EB; }

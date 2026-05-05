@@ -6,13 +6,29 @@ const LoginPage = ({ onLogin }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Validation logic
-        if (email.trim().toLowerCase() === 'lotfybelhiba@gmail.com' && password === 'admin') {
-            onLogin();
-        } else {
-            setError('Identifiants incorrects. Veuillez réessayer.');
+        setError('');
+        
+        try {
+            const response = await fetch('http://localhost:5000/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                localStorage.setItem('mynds_user', JSON.stringify(data.user));
+                localStorage.setItem('mynds_migrated_to_pg', 'true'); // Enable sync
+                onLogin();
+            } else {
+                setError(data.error || 'Identifiants incorrects. Veuillez réessayer.');
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            setError('Erreur de connexion au serveur.');
         }
     };
 

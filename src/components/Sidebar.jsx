@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Receipt, CreditCard, Users, BarChart3, Settings, Target, Calculator, PieChart, History, Landmark, AlertCircle, Menu, ChevronLeft, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, Receipt, CreditCard, Users, BarChart3, Settings, Target, Calculator, PieChart, History, Landmark, AlertCircle, Menu, ChevronLeft, LogOut, Heart } from 'lucide-react';
 import { getClients } from '../services/storageService';
 
 const Sidebar = () => {
@@ -136,6 +136,13 @@ const Sidebar = () => {
                     {({ isActive }) => (
                         <>
                             <BarChart3 size={20} color={isActive ? 'var(--accent-gold)' : 'currentColor'} style={{ minWidth: '20px' }} /> {!isCollapsed && "Rapport"}
+                        </>
+                    )}
+                </NavLink>
+                <NavLink to="/vie-perso" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} style={({ isActive }) => ({ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '12px', padding: '10px 16px', borderRadius: '12px', textDecoration: 'none', color: isActive ? 'var(--text-main)' : 'var(--text-muted)', fontWeight: isActive ? '700' : '600', fontSize: '14px', background: isActive ? 'rgba(255, 193, 5, 0.15)' : 'transparent', borderLeft: isActive ? '4px solid var(--accent-gold)' : '4px solid transparent', transition: 'all 0.2s', overflow: 'hidden', whiteSpace: 'nowrap' })} title={isCollapsed ? "Vie Perso" : ""}>
+                    {({ isActive }) => (
+                        <>
+                            <Heart size={20} color={isActive ? 'var(--accent-gold)' : 'currentColor'} style={{ minWidth: '20px' }} /> {!isCollapsed && "Vie Perso"}
                         </>
                     )}
                 </NavLink>

@@ -1,139 +1,125 @@
-export const generateId = (prefix = 'ID') => {
-    const timestamp = Date.now().toString(36);
-    const randomStr = Math.random().toString(36).substring(2, 7).toUpperCase();
-    return `${prefix}-${timestamp}-${randomStr}`;
-};
+import { api } from './api';
 
-export const getStorage = (key, defaultVal = []) => {
+// Services de stockage centralisés pour l'application Mynds Finance
+
+export const getStorage = (key, defaultValue = []) => {
     try {
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : defaultVal;
+        const stored = localStorage.getItem(key);
+        return stored ? JSON.parse(stored) : defaultValue;
     } catch (e) {
-        console.error(`Error reading ${key} from storage:`, e);
-        return defaultVal;
+        console.error('Error reading storage', key, e);
+        return defaultValue;
     }
 };
 
-export const setStorage = (key, val) => {
+export const setStorage = (key, value) => {
     try {
-        localStorage.setItem(key, JSON.stringify(val));
+        localStorage.setItem(key, JSON.stringify(value));
+        
+        // Background sync to API if migrated
+        if (localStorage.getItem('mynds_migrated_to_pg') === 'true') {
+             // We use a debounce-like approach or just direct for now
+             triggerBackgroundSync();
+        }
     } catch (e) {
-        console.error(`Error saving ${key} to storage:`, e);
+        console.error('Error writing storage', key, e);
     }
 };
 
-// Strongly typed getters for critical entities
+export const syncAllFromDB = async () => {
+    try {
+        if (localStorage.getItem('mynds_migrated_to_pg') !== 'true') return;
+        
+        console.log("🔄 Synchronisation depuis PostgreSQL...");
+        const [clients, factures, transactions, rhStates, audit] = await Promise.all([
+            api.get('/clients'),
+            api.get('/invoices'),
+            api.get('/bank/transactions'),
+            api.get('/rh-states'),
+            api.get('/audit-history')
+        ]);
+        
+        if (clients) localStorage.setItem('mynds_clients', JSON.stringify(clients));
+        if (factures) localStorage.setItem('mynds_factures', JSON.stringify(factures));
+        if (transactions) localStorage.setItem('mynds_bank_transactions', JSON.stringify(transactions));
+        if (rhStates) localStorage.setItem('mynds_rh_states', JSON.stringify(rhStates));
+        if (audit) localStorage.setItem('mynds_audit_history', JSON.stringify(audit));
+        
+        console.log("✅ Synchronisation terminée.");
+    } catch (e) {
+        console.error("Erreur de synchronisation:", e);
+    }
+};
+
+let syncTimeout = null;
+const triggerBackgroundSync = () => {
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(async () => {
+        try {
+            console.log("📤 Syncing to PostgreSQL...");
+            await api.post('/migration/import', {
+                clients: getClients(),
+                factures: getFactures(),
+                bankTransactions: getBankTransactions(),
+                rhStates: getRHStates(),
+                auditHistory: getAuditHistory(),
+                quotes: getStorage('mynds_devis', []),
+                notes: getStorage('mynds_notes', [])
+            });
+            const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            localStorage.setItem('mynds_last_sync', now);
+            console.log("✨ Data synced at " + now);
+        } catch (e) {
+            console.error("Sync failed:", e);
+        }
+    }, 2000); // Debounce 2s
+};
+
 export const getClients = () => getStorage('mynds_clients', []);
-export const saveClients = (clients) => setStorage('mynds_clients', clients);
+export const saveClients = (clients) => {
+    setStorage('mynds_clients', clients);
+    if (localStorage.getItem('mynds_migrated_to_pg') === 'true') {
+        // Here we could call individual API points if we had them, 
+        // or just re-import everything. For this demo, let's assume 
+        // the user manages data through the UI which handles its own saves.
+    }
+};
 
 export const getFactures = () => getStorage('mynds_factures', []);
-export const saveFactures = (factures) => setStorage('mynds_factures', factures);
+export const saveFactures = (factures) => {
+    setStorage('mynds_factures', factures);
+};
+
+export const getAuditHistory = () => getStorage('mynds_audit_history', {});
+export const saveAuditHistory = (history) => setStorage('mynds_audit_history', history);
 
 export const getBankTransactions = () => getStorage('mynds_bank_transactions', []);
 export const saveBankTransactions = (txs) => setStorage('mynds_bank_transactions', txs);
 
-export const generateSequentialClientId = (enseigne, dateDebut) => {
+export const getRHStates = () => getStorage('mynds_rh_states', []);
+export const saveRHStates = (states) => setStorage('mynds_rh_states', states);
+
+export const generateId = () => 'id-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+
+export const generateSequentialClientId = () => {
     const clients = getClients();
-    const year = dateDebut ? new Date(dateDebut).getFullYear() : new Date().getFullYear();
-    const prefix = `CL-${year}`;
-    
-    // Find highest sequence for this year
-    const yearClients = clients.filter(c => c.id && c.id.startsWith(prefix));
-    let nextSeq = 1;
-    if (yearClients.length > 0) {
-        const seqs = yearClients.map(c => {
-            const parts = c.id.split('-');
-            return parts.length >= 3 ? parseInt(parts[2], 10) : 0;
-        }).filter(n => !isNaN(n));
-        if (seqs.length > 0) {
-            nextSeq = Math.max(...seqs) + 1;
-        }
-    }
-
-    const seqStr = nextSeq.toString().padStart(3, '0');
-    const slug = (enseigne || 'CLIENT')
-        .toUpperCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
-        .replace(/[^A-Z0-9]/g, '') // Only alphanumeric
-        .substring(0, 15);
-
-    return `${prefix}-${seqStr}-${slug}`;
+    const maxId = clients.reduce((max, c) => {
+        const match = (c.id || '').match(/^CLT(\d+)$/);
+        return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    return `CLT${String(maxId + 1).padStart(3, '0')}`;
 };
 
 export const migrateDataStructureIfNeeded = () => {
-    const migrationKey = 'mynds_migration_v3_sequential_ids';
-    if (localStorage.getItem(migrationKey)) {
-        return; // Already migrated
+    // Migration stub - prevents crash on import
+    // Original migration logic was for old data format upgrades
+    try {
+        const version = localStorage.getItem('mynds_data_version');
+        if (!version) {
+            localStorage.setItem('mynds_data_version', '3');
+        }
+    } catch (e) {
+        console.warn('Migration check skipped:', e);
     }
-
-    console.log("Running strategic data migration (v3 - Sequential IDs)...");
-    
-    // 1. Map old IDs to new sequential IDs
-    let clients = getClients();
-    const idMap = {}; // { oldId: newId }
-    
-    // Sort clients by dateDebut to ensure consistent 001, 002...
-    const sortedClients = [...clients].sort((a, b) => {
-        const d1 = a.dateDebut || '2000-01-01';
-        const d2 = b.dateDebut || '2000-01-01';
-        return d1.localeCompare(d2);
-    });
-
-    const newClients = sortedClients.map(c => {
-        const oldId = c.id;
-        // Temporarily clear current client from search to avoid self-counting in generateSequentialClientId
-        // But wait, generateSequentialClientId uses getClients().
-        // Let's implement local sequence tracking during migration.
-        return c; 
-    });
-
-    // Re-implementing generation loop for migration to avoid getClients() dependency mid-loop
-    const finalClients = [];
-    const yearCounters = {}; // { year: count }
-
-    sortedClients.forEach(c => {
-        const year = c.dateDebut ? new Date(c.dateDebut).getFullYear() : 2024;
-        yearCounters[year] = (yearCounters[year] || 0) + 1;
-        
-        const seqStr = yearCounters[year].toString().padStart(3, '0');
-        const slug = (c.enseigne || 'CLIENT')
-            .toUpperCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^A-Z0-9]/g, '')
-            .substring(0, 15);
-            
-        const newId = `CL-${year}-${seqStr}-${slug}`;
-        idMap[c.id] = newId;
-        finalClients.push({ ...c, id: newId });
-    });
-
-    saveClients(finalClients);
-
-    // 2. Update Factures
-    let factures = getFactures();
-    let facturesModified = false;
-    factures = factures.map(f => {
-        if (f.clientId && idMap[f.clientId]) {
-            f.clientId = idMap[f.clientId];
-            facturesModified = true;
-        }
-        return f;
-    });
-    if (facturesModified) saveFactures(factures);
-
-    // 3. Update bank transactions
-    let transactions = getBankTransactions();
-    let txModified = false;
-    transactions = transactions.map(t => {
-        if (t.clientId && idMap[t.clientId]) {
-            t.clientId = idMap[t.clientId];
-            txModified = true;
-        }
-        return t;
-    });
-    if (txModified) saveBankTransactions(transactions);
-
-    // Mark migration as done
-    localStorage.setItem(migrationKey, 'true');
-    console.log("Migration v3 completed.");
 };
+

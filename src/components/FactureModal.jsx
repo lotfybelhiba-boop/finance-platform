@@ -4,9 +4,9 @@ import { generateDocumentPDF } from '../utils/pdfGenerator.jsx';
 import { loadConfig, initialServices } from '../data/defaultConfig';
 import { getClients, getFactures } from '../services/storageService';
 
-const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientName, targetDate }) => {
+const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, targetDate, clientsList }) => {
+    const pad = (n) => n.toString().padStart(2, '0');
     const servicesList = useMemo(() => loadConfig('services', initialServices), []);
-    const clientsList = useMemo(() => getClients() || [], []);
 
     // Initial state derived from props
     const getInitialState = () => {
@@ -22,11 +22,11 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
             applyTimbre: true,
             isExonore: false,
             notes: '',
-            statut: 'Draft',
+            statut: 'Pending',
             isExtra: false,
             coutExtra: 0,
             ressourceExtra: '',
-            selectedMonth: ''
+            selectedMonth: targetDate ? (targetDate.month + 1).toString() : ''
         };
 
         if (factureToEdit) {
@@ -50,11 +50,16 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
             };
         }
 
-        if (initialClientName) {
-            const cObj = clientsList.find(c => c.id === initialClientName);
-            initialState.client = initialClientName;
+        if (targetClient) {
+            const cObj = clientsList.find(c => c.id === targetClient || c.enseigne === targetClient);
+            initialState.client = targetClient;
 
-            if (cObj && cObj.regime === 'Abonnement') {
+            if (cObj) {
+                // VAT matching
+                initialState.tva = (cObj.sousTVA === false || cObj.sousTVA === 'Non') ? 0 : 20;
+
+                if (cObj.regime === 'Abonnement' || targetDate) {
+                // --- ABONNEMENT AUTO-FILL ---
                 const baseDate = targetDate
                     ? new Date(targetDate.year, targetDate.month, 1)
                     : new Date();
@@ -80,7 +85,8 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                 }
                 if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
 
-                const pad = (n) => n.toString().padStart(2, '0');
+                if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
+                
                 const firstD = (cycleDay === 1)
                     ? new Date(baseDate.getFullYear(), baseDate.getMonth(), 1)
                     : new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, cycleDay);
@@ -97,7 +103,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                     echDate = new Date(lastD);
                     echDate.setDate(echDate.getDate() + parseInt(cObj.delaiPaiement, 10));
                 } else {
-                    const jourP = cObj.jourPaiement || 5;
+                    const jourP = cObj ? (cObj.jourPaiement || 5) : 5;
                     echDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 2, jourP);
                 }
                 initialState.echeance = `${echDate.getFullYear()}-${pad(echDate.getMonth() + 1)}-${pad(echDate.getDate())}`;
@@ -106,32 +112,98 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                 const yearLabel = baseDate.getFullYear();
 
                 let initialLignes = [];
-                if (cObj.servicesRecurrents && cObj.servicesRecurrents.length > 0) {
-                    // Si des services détaillés existent, on les utilise en priorité
+                if (cObj && cObj.servicesRecurrents && cObj.servicesRecurrents.length > 0) {
                     initialLignes = cObj.servicesRecurrents.map((srv, idx) => ({
                         id: Date.now() + idx,
                         desc: srv.desc.includes(monthLabel) ? srv.desc : `${srv.desc} (${monthLabel} ${yearLabel})`,
                         qte: 1,
                         prix: parseFloat(srv.prix) || 0
                     }));
-                } else if (cObj.montantMensuel) {
-                    // Sinon on utilise le forfait de base
+                } else if (cObj && (cObj.montantMensuel || cObj.montantAnnuel)) {
                     initialLignes = [{
                         id: Date.now(),
-                        desc: `Abonnement ${monthLabel} ${yearLabel} - ${cObj.projet || 'Prestations'}`,
+                        desc: `Facturation ${monthLabel} ${yearLabel} - ${cObj.projet || 'Prestations'}`,
                         qte: 1,
-                        prix: cObj.montantMensuel || 0
+                        prix: parseFloat(cObj.montantMensuel || cObj.montantAnnuel || 0)
                     }];
                 }
 
                 initialState.lignes = initialLignes;
+
+            } else if (cObj && cObj.regime === 'One-Shot') {
+                // --- ONE-SHOT AUTO-FILL ---
+                const today = new Date();
+
+                // Date début = fiche client (dateDebut)
+                const startDate = cObj.dateDebut ? new Date(cObj.dateDebut) : today;
+                // Date fin = dateFin de la fiche client, sinon aujourd'hui
+                const endDate = cObj.dateFin ? new Date(cObj.dateFin) : today;
+
+                initialState.periodeDebut = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`;
+                initialState.periodeFin = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`;
+                initialState.dateEmi = initialState.periodeFin;
+
+                // Échéance
+                if (cObj.delaiPaiement) {
+                    const ech = new Date(endDate);
+                    ech.setDate(ech.getDate() + parseInt(cObj.delaiPaiement, 10));
+                    initialState.echeance = `${ech.getFullYear()}-${pad(ech.getMonth() + 1)}-${pad(ech.getDate())}`;
+                }
+
             }
+        }
+    }
+        if (targetDate && targetDate.suggestion) {
+            const sug = targetDate.suggestion;
+            initialState.client = sug.clientId || initialState.client;
+            initialState.dateEmi = sug.dateEmi || initialState.dateEmi;
+            initialState.periodeDebut = sug.periodeDebut || initialState.periodeDebut;
+            initialState.periodeFin = sug.periodeFin || initialState.periodeFin;
+            if (sug.desc) {
+                initialState.lignes = [{
+                    id: Date.now(),
+                    desc: sug.desc,
+                    qte: 1,
+                    prix: parseFloat(sug.montant || 0)
+                }];
+            }
+        }
+
+        // Apply TVA based on cObj if we reach here
+        const finalCObj = clientsList.find(c => c.id === initialState.client || c.enseigne === initialState.client);
+        if (finalCObj) {
+            initialState.tva = (finalCObj.sousTVA === false || finalCObj.sousTVA === 'Non') ? 0 : 20;
         }
 
         return initialState;
     };
 
-    const [init] = useState(getInitialState);
+    const init = getInitialState();
+
+    useEffect(() => {
+        if (isOpen) {
+            const freshState = getInitialState();
+            setClient(freshState.client);
+            setDateEmi(freshState.dateEmi);
+            setEcheance(freshState.echeance);
+            setPeriodeDebut(freshState.periodeDebut);
+            setPeriodeFin(freshState.periodeFin);
+            setLignes(freshState.lignes);
+            setConditions(freshState.conditions);
+            setApplyTva(freshState.applyTva);
+            setApplyTimbre(freshState.applyTimbre);
+            setIsExonore(freshState.isExonore);
+            setNotes(freshState.notes);
+            setStatut(freshState.statut);
+            setIsExtra(freshState.isExtra);
+            setCoutExtra(freshState.coutExtra);
+            setRessourceExtra(freshState.ressourceExtra);
+            setSelectedMonth(freshState.selectedMonth);
+            setCompteEncaissement(factureToEdit?.compteEncaissement || 'BIAT');
+            setDatePaiement(factureToEdit?.datePaiement || new Date().toISOString().split('T')[0]);
+            setIsIdManual(false);
+        }
+    }, [isOpen, factureToEdit, targetClient, targetDate]);
 
     const [client, setClient] = useState(init.client);
     const [dateEmi, setDateEmi] = useState(init.dateEmi);
@@ -166,6 +238,49 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
     useEffect(() => {
         if (!isOpen || factureToEdit) return; // Only process for NEW invoices
 
+        // --- AUDIT SUGGESTION: Priority handling ---
+        if (targetDate && targetDate.suggestion) {
+            const sug = targetDate.suggestion;
+            if (sug.clientId) setClient(sug.clientId);
+            if (sug.id) {
+                setNumeroGlobal(sug.id);
+                setIsIdManual(true);
+            }
+            if (sug.dateEmi) setDateEmi(sug.dateEmi);
+            if (sug.periodeDebut) setPeriodeDebut(sug.periodeDebut);
+            if (sug.periodeFin) setPeriodeFin(sug.periodeFin);
+            if (sug.desc) {
+                setLignes([{ id: Date.now(), desc: sug.desc, qte: 1, prix: parseFloat(sug.montant || 0) }]);
+            }
+            return; // Skip default logic
+        }
+
+        // --- ONE-SHOT: use dateDebut / dateFin from client profile directly ---
+        if (client) {
+            const currentClientObj = clientsList.find(c => c.id === client);
+            if (currentClientObj && currentClientObj.regime === 'One-Shot') {
+                const today = new Date();
+                const startDate = currentClientObj.dateDebut ? new Date(currentClientObj.dateDebut) : today;
+                const endDate   = currentClientObj.dateFin   ? new Date(currentClientObj.dateFin)   : today;
+
+                const startStr = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`;
+                const endStr   = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`;
+
+                setPeriodeDebut(startStr);
+                setPeriodeFin(endStr);
+                setDateEmi(endStr);
+
+                if (currentClientObj.delaiPaiement) {
+                    const ech = new Date(endDate);
+                    ech.setDate(ech.getDate() + parseInt(currentClientObj.delaiPaiement, 10));
+                    setEcheance(`${ech.getFullYear()}-${pad(ech.getMonth() + 1)}-${pad(ech.getDate())}`);
+                }
+
+                return; // Done for One-Shot, skip Abonnement logic below
+            }
+        }
+
+        // --- ABONNEMENT / default: cycle-day logic ---
         const now = new Date();
         let targetM = now.getMonth();
         let targetY = now.getFullYear();
@@ -189,7 +304,10 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
         if (client) {
             const currentClientObj = clientsList.find(c => c.id === client);
             if (currentClientObj) {
-                if (targetDate && targetDate.cycleDay) {
+                // Cas spécial : Départ le 15 mais cycle civil forcé (espece/cadeau)
+                if (currentClientObj.option15Jours) {
+                    cycleDay = 1;
+                } else if (targetDate && targetDate.cycleDay) {
                     cycleDay = targetDate.cycleDay;
                 } else if (currentClientObj.modeCycle === 'Du 15 au 14') {
                     cycleDay = 15;
@@ -210,8 +328,6 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
         }
 
         if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
-
-        const pad = (n) => n.toString().padStart(2, '0');
 
         const firstDay = new Date(targetY, targetM, cycleDay);
         const lastDay = cycleDay === 1
@@ -245,6 +361,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
 
     }, [client, selectedMonth, isOpen, factureToEdit, targetDate, clientsList]);
 
+
     // Calculate numbering when modal opens or client changes
     useEffect(() => {
         if (isOpen) {
@@ -258,7 +375,21 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
             const selectedClientObj = clientsList.find(c => c.id === client);
             const isSousTVA = selectedClientObj ? selectedClientObj.sousTVA : true;
 
-            const clientFacturesList = allFactures.filter(f => f.id && !f.id.startsWith('ND-') && f.id !== 'non déclarée').sort((a, b) => new Date(b.dateEmi) - new Date(a.dateEmi));
+            const currentYearRef = new Date(dateEmi || new Date()).getFullYear();
+
+            let clientFacturesList = [];
+            if (isSousTVA === false || isSousTVA === 'Non') {
+                clientFacturesList = allFactures.filter(f => f.id && f.clientId === client).sort((a, b) => new Date(b.dateEmi) - new Date(a.dateEmi));
+            } else {
+                clientFacturesList = allFactures.filter(f => f.id && !f.id.startsWith('ND-') && f.id !== 'non déclarée' && f.tva > 0 && new Date(f.dateEmi).getFullYear() === currentYearRef).sort((a, b) => {
+                    const matchA = a.id.match(/^N(\d+)-/);
+                    const matchB = b.id.match(/^N(\d+)-/);
+                    const numA = matchA ? parseInt(matchA[1], 10) : 0;
+                    const numB = matchB ? parseInt(matchB[1], 10) : 0;
+                    if (numA !== numB) return numB - numA;
+                    return new Date(b.dateEmi) - new Date(a.dateEmi);
+                });
+            }
             setDerniereFacture(clientFacturesList.length > 0 ? clientFacturesList[0].id : 'Aucune');
 
             if (factureToEdit) {
@@ -272,15 +403,29 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                     if (isSousTVA === false || isSousTVA === 'Non') {
                         // Non-VAT Facture -> Commence par ND-
                         const dateRef = new Date(periodeDebut || dateEmi || new Date());
-                        const month = String(dateRef.getMonth() + 1).padStart(2, '0');
+                        const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+                        const monthName = monthNames[dateRef.getMonth()];
                         const year = dateRef.getFullYear();
-                        const clientName = selectedClientObj ? selectedClientObj.enseigne.replace(/[^a-zA-Z0-9]/g, '') : 'Client';
-                        const baseName = `ND-${year}${month}-${clientName}`;
+                        const clientName = selectedClientObj ? selectedClientObj.enseigne : 'Client';
+                        const baseName = `${clientName}_${monthName}_${year}`;
 
-                        // Check uniqueness
+                        // Check uniqueness robustly
+                        let maxSuffix = 0;
                         const existing = allFactures.filter(f => f.clientId === client && f.id && f.id.startsWith(baseName));
-                        if (existing.length > 0) {
-                            setNumeroGlobal(`${baseName}-${existing.length + 1}`);
+                        existing.forEach(f => {
+                            if (f.id === baseName) {
+                                if (maxSuffix < 1) maxSuffix = 1;
+                            } else {
+                                const match = f.id.match(new RegExp(`^${baseName}_(\\d+)$`));
+                                if (match) {
+                                    const num = parseInt(match[1], 10);
+                                    if (num > maxSuffix) maxSuffix = num;
+                                }
+                            }
+                        });
+                        
+                        if (maxSuffix > 0) {
+                            setNumeroGlobal(`${baseName}_${maxSuffix + 1}`);
                         } else {
                             setNumeroGlobal(baseName);
                         }
@@ -288,49 +433,47 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                         setApplyTimbre(false);
                         setCompteEncaissement('QNB'); // Default for non-declared
                     } else {
-                        // VAT Factures - simulate what the backend (FacturesPage) will assign
-                        setCompteEncaissement('BIAT'); // Default for declared
-                        // Sorting by dateEmi then seniority
-                        const vatFactures = allFactures.filter(f => f.tva > 0 || (f.id && /^N\d{2}-\d{4}-\d{3}$/.test(f.id)) || (f.id && f.id.startsWith('INV-')));
+                        // VAT Factures (Déclarées) - Format NXX-YYYY-CC
+                        // XX = numéro global séquentiel, YYYY = année, CC = rang ancienneté client
+                        setCompteEncaissement('BIAT');
+                        const vatFactures = allFactures.filter(f => f.tva > 0 || (f.id && /^N\d{2,3}-\d{4}-\d{2,3}$/.test(f.id)) || (f.id && f.id.startsWith('INV-')));
                         const currentYear = new Date(dateEmi || new Date()).getFullYear();
-
                         const yearVats = vatFactures.filter(f => new Date(f.dateEmi).getFullYear() === currentYear);
 
+                        // Numéro global : max des N existantes + 1
                         let maxGlobal = 0;
                         yearVats.forEach(f => {
                             if (f.id) {
-                                const match = f.id.match(/^N(\d{2})-/);
+                                const match = f.id.match(/^N(\d{2,3})-/);
                                 if (match) {
                                     const num = parseInt(match[1], 10);
                                     if (num > maxGlobal) maxGlobal = num;
                                 }
                             }
                         });
-                        const globalCount = (currentYear === 2026 && maxGlobal === 0 && (client !== 'default-Globaleep' && client !== 'Globaleep')) ? 2 : maxGlobal + 1;
+                        const globalCount = maxGlobal + 1;
 
-                        let maxClient = 0;
-                        if (client) {
-                            const clientFacturesAllTime = vatFactures.filter(f => f.client === client);
-                            clientFacturesAllTime.forEach(f => {
-                                if (f.id) {
-                                    const match = f.id.match(/-(\d{3})$/);
-                                    if (match) {
-                                        const num = parseInt(match[1], 10);
-                                        if (num > maxClient) maxClient = num;
-                                    }
-                                }
+                        // CC = Ancienneté du client (rang par dateDebut, les plus anciens d'abord)
+                        const declaredClients = clientsList
+                            .filter(c => c.sousTVA !== false && c.sousTVA !== 'Non' && c.etatClient === 'Actif')
+                            .sort((a, b) => {
+                                const dA = a.dateDebut ? new Date(a.dateDebut) : new Date('2099-01-01');
+                                const dB = b.dateDebut ? new Date(b.dateDebut) : new Date('2099-01-01');
+                                if (dA.getTime() !== dB.getTime()) return dA - dB;
+                                return (a.id || '').localeCompare(b.id || '');
                             });
-                        }
-                        const clientCount = maxClient + 1;
+                        const clientRank = declaredClients.findIndex(c => c.id === client) + 1;
+                        const clientOrder = clientRank > 0 ? clientRank : declaredClients.length + 1;
 
-                        setNumeroGlobal(`N${globalCount.toString().padStart(2, '0')}-${currentYear}-${clientCount.toString().padStart(3, '0')}`);
+                        setNumeroGlobal(`N${globalCount.toString().padStart(2, '0')}-${currentYear}-${clientOrder.toString().padStart(2, '0')}`);
                         setApplyTva(true);
                     }
                 }
 
                 if (client) {
-                    const clientFacturesAllTime = allFactures.filter(f => f.client === client && f.id && !f.id.startsWith('ND-') && f.id !== 'non déclarée');
-                    setNumeroClient(`Facture N°${clientFacturesAllTime.length + 1} pour ${client}`);
+                    const clientFacturesAllTime = allFactures.filter(f => f.clientId === client && f.id && !f.id.startsWith('ND-') && f.id !== 'non déclarée');
+                    const clientNameStr = selectedClientObj ? selectedClientObj.enseigne : client;
+                    setNumeroClient(`Facture N°${clientFacturesAllTime.length + 1} pour ${clientNameStr}`);
                 } else {
                     setNumeroClient('');
                 }
@@ -365,6 +508,34 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                     prix: parseFloat(srv.prix) || 0
                 });
             });
+        } else if (clientObj.regime === 'One-Shot') {
+            // One-Shot: use servicesRecurrents if defined, else montantTotal
+            if (clientObj.servicesRecurrents && clientObj.servicesRecurrents.length > 0) {
+                clientObj.servicesRecurrents.forEach(srv => {
+                    newLignes.push({
+                        id: timeId++,
+                        desc: srv.desc,
+                        qte: 1,
+                        prix: parseFloat(srv.prix) || 0
+                    });
+                });
+            } else if (clientObj.montantTotal) {
+                newLignes.push({
+                    id: timeId++,
+                    desc: `${clientObj.projet || 'Prestation'} - ${clientObj.enseigne}`,
+                    qte: 1,
+                    prix: parseFloat(clientObj.montantTotal) || 0
+                });
+            }
+
+            // Update period dates for One-Shot
+            const today = new Date();
+            const pad = (n) => n.toString().padStart(2, '0');
+            const startDate = clientObj.dateDebut ? new Date(clientObj.dateDebut) : today;
+            const endDate = clientObj.dateFin ? new Date(clientObj.dateFin) : today;
+            setPeriodeDebut(`${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())}`);
+            setPeriodeFin(`${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`);
+            setDateEmi(`${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}`);
         } else if (clientObj.montantMensuel) {
             newLignes.push({
                 id: timeId++,
@@ -439,10 +610,12 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
         }
 
         const nouvelleFacture = {
-            ...(factureToEdit || {}), // Preserve historical data like 'paiements', 'datePaiement'
+            ...(factureToEdit || {}), 
             id: numeroGlobal,
             clientId: client,
             client: clientName,
+            clientMF: currentClientObj?.mf || '',
+            clientAdresse: currentClientObj?.adresse || '',
             montant: totalTTC,
             dateEmi,
             echeance: echeance || "N/A",
@@ -717,7 +890,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                                         <input type="number" min="0" step="0.001" required value={ligne.prix} onChange={e => updateLigne(ligne.id, 'prix', parseFloat(e.target.value) || 0)} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px' }} />
                                     </div>
                                     <div style={{ flex: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', padding: '6px 0' }}>
-                                        <span style={{ fontWeight: '600', fontSize: '12px' }}>{formatMoney(ligne.qte * ligne.prix)}</span>
+                                        <span style={{ fontWeight: '600', fontSize: '12px' }}>{(ligne.prix > 0) ? formatMoney(ligne.qte * ligne.prix) : ''}</span>
                                         <button type="button" onClick={() => handleRemoveLigne(ligne.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', opacity: lignes.length > 1 ? 1 : 0.3, cursor: lignes.length > 1 ? 'pointer' : 'not-allowed' }}>
                                             <Trash2 size={14} />
                                         </button>
@@ -838,8 +1011,8 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, initialClientNam
                     </div>
                 </div>
 
-            </div >
-        </div >
+            </div>
+        </div>
     );
 };
 

@@ -13,7 +13,7 @@ const A4InvoiceDocument = ({ facture }) => {
     const isND = (facture.id === 'non déclarée' || (facture.id && facture.id.startsWith('ND-')));
 
     const myndsInfo = {
-        name: "MYNDS AGENCY",
+        name: "Mynds Team",
         adresse: "136 Ave de la liberté, Tunis",
         telephone: "29 543 202",
         email: "contact@mynds-team.com",
@@ -22,11 +22,11 @@ const A4InvoiceDocument = ({ facture }) => {
         banque: isND ? "QNB" : "BIAT"
     };
 
-    const client = facture.clientObj || {
+    const client = {
         enseigne: facture.client,
-        adresse: "Client B2B",
-        mf: "",
-        telephone: ""
+        adresse: facture.clientAdresse || facture.clientObj?.adresse || "Tunisie",
+        mf: facture.clientMF || facture.clientObj?.mf || "",
+        telephone: facture.clientObj?.telephone || ""
     };
 
     const yellowAccent = "#FFC105";
@@ -35,7 +35,7 @@ const A4InvoiceDocument = ({ facture }) => {
         <div id="invoice-document" style={{
             width: '210mm',
             height: '297mm',
-            padding: '10mm 15mm',
+            padding: '8mm 15mm 18mm 15mm',
             background: '#ffffff',
             color: '#000000',
             fontFamily: "'Inter', 'Segoe UI', Roboto, sans-serif",
@@ -45,7 +45,7 @@ const A4InvoiceDocument = ({ facture }) => {
             display: 'flex',
             flexDirection: 'column',
             position: 'relative',
-            overflow: 'visible' // Changed from hidden to avoid clipping
+            overflow: 'hidden'  // Clip at exact A4 height — prevents blank 2nd page
         }}>
             {/* WATERMARK LOGO */}
             <div style={{
@@ -64,7 +64,7 @@ const A4InvoiceDocument = ({ facture }) => {
             <div style={{ position: 'relative', zIndex: 1, height: '100%', display: 'flex', flexDirection: 'column' }}>
                 
                 {/* 1. HEADER */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '25mm' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10mm' }}>
                     <div style={{ flex: 1 }}>
                         <img src="/logo-dark.png" alt="MYNDS" style={{ height: '14mm' }} />
                     </div>
@@ -78,9 +78,9 @@ const A4InvoiceDocument = ({ facture }) => {
                 </div>
 
                 {/* 2. TITLE & INFO BAR */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '15mm', borderBottom: '1px solid #eee', paddingBottom: '5mm' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8mm', borderBottom: '1px solid #eee', paddingBottom: '4mm' }}>
                     <div style={{ flex: 1.5 }}>
-                        <div style={{ fontSize: '32pt', fontWeight: '900', color: yellowAccent, textTransform: 'uppercase', marginBottom: '4mm', lineHeight: 1 }}>FACTURE</div>
+                        <div style={{ fontSize: '28pt', fontWeight: '900', color: yellowAccent, textTransform: 'uppercase', marginBottom: '3mm', lineHeight: 1 }}>FACTURE</div>
                         <div style={{ fontSize: '9pt', color: '#999', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '1pt', marginBottom: '1mm' }}>Facturé à</div>
                         <div style={{ fontSize: '13pt', fontWeight: '900', marginBottom: '2mm' }}>{client.enseigne}</div>
                         <div style={{ fontSize: '9pt', color: '#444', lineHeight: '1.5', maxWidth: '80%' }}>
@@ -92,35 +92,47 @@ const A4InvoiceDocument = ({ facture }) => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2mm', fontSize: '10pt' }}>
                             <div><span style={{ color: '#999' }}>N°</span> <span style={{ fontWeight: '900', color: isND ? '#EF4444' : '#000', fontSize: '11pt' }}>{isND ? 'ND' : facture.id}</span></div>
                             <div><span style={{ color: '#999' }}>DATE</span> <span style={{ fontWeight: '900', color: '#000' }}>{facture.dateEmi}</span></div>
+                            {(facture.periodeDebut || facture.periodeFin) && (
+                                <div style={{ marginTop: '1mm', fontSize: '8.5pt' }}>
+                                    <span style={{ color: '#999', fontSize: '7pt', textTransform: 'uppercase', display: 'block', marginBottom: '0.5mm' }}>Période de prestation</span>
+                                    <span style={{ fontWeight: '700', color: '#555' }}>
+                                        {facture.periodeDebut ? `Du ${facture.periodeDebut.split('-').reverse().join('/')}` : ''} 
+                                        {facture.periodeFin ? ` Au ${facture.periodeFin.split('-').reverse().join('/')}` : ''}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* 3. TABLE */}
                 <div style={{ flex: 1 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10mm' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '5mm' }}>
                         <thead>
-                            <tr style={{ textAlign: 'left', fontSize: '8pt', textTransform: 'uppercase', letterSpacing: '1pt', color: '#666' }}>
-                                <th style={{ padding: '4mm 0', borderBottom: '1.5pt solid #000', width: '60%' }}>Désignation</th>
-                                <th style={{ padding: '4mm 0', borderBottom: '1.5pt solid #000', textAlign: 'center', width: '10%' }}>Qté</th>
-                                <th style={{ padding: '4mm 0', borderBottom: '1.5pt solid #000', textAlign: 'right', width: '15%' }}>P.U HT</th>
-                                <th style={{ padding: '4mm 0', borderBottom: '1.5pt solid #000', textAlign: 'right', width: '15%' }}>Total HT</th>
+                            <tr style={{ textAlign: 'left', fontSize: '7.5pt', textTransform: 'uppercase', letterSpacing: '1pt', color: '#666' }}>
+                                <th style={{ padding: '2.5mm 0', borderBottom: '1.5pt solid #000', width: '60%' }}>Désignation</th>
+                                <th style={{ padding: '2.5mm 0', borderBottom: '1.5pt solid #000', textAlign: 'center', width: '10%' }}>Qté</th>
+                                <th style={{ padding: '2.5mm 0', borderBottom: '1.5pt solid #000', textAlign: 'right', width: '15%' }}>P.U HT</th>
+                                <th style={{ padding: '2.5mm 0', borderBottom: '1.5pt solid #000', textAlign: 'right', width: '15%' }}>Total HT</th>
                             </tr>
                         </thead>
                         <tbody style={{ fontSize: '9.5pt' }}>
-                            {(facture.lignes || [{ desc: 'Prestation de Services', qte: 1, prix: facture.montantHT || (facture.montant / 1.19) }]).map((ligne, idx) => (
-                                <tr key={idx} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                                    <td style={{ padding: '3.5mm 0', verticalAlign: 'top', fontWeight: '500' }}>{ligne.desc}</td>
-                                    <td style={{ padding: '3.5mm 0', verticalAlign: 'top', textAlign: 'center' }}>{ligne.qte}</td>
-                                    <td style={{ padding: '3.5mm 0', verticalAlign: 'top', textAlign: 'right' }}>{formatMoney(ligne.prix)}</td>
-                                    <td style={{ padding: '3.5mm 0', verticalAlign: 'top', textAlign: 'right', fontWeight: '600' }}>{formatMoney(ligne.prix * ligne.qte)}</td>
-                                </tr>
-                            ))}
+                            {(facture.lignes || [{ desc: 'Prestation de Services', qte: 1, prix: facture.montantHT || (facture.montant / 1.19) }]).map((ligne, idx) => {
+                                const isFree = (parseFloat(ligne.prix) === 0);
+                                return (
+                                    <tr key={idx} style={{ borderBottom: '0.5pt solid #f0f0f0' }}>
+                                        <td style={{ padding: '2mm 0', verticalAlign: 'middle', fontWeight: '500', lineHeight: '1.3' }}>{ligne.desc}</td>
+                                        <td style={{ padding: '2mm 0', verticalAlign: 'middle', textAlign: 'center' }}>{!isFree ? ligne.qte : ''}</td>
+                                        <td style={{ padding: '2mm 0', verticalAlign: 'middle', textAlign: 'right' }}>{!isFree ? formatMoney(ligne.prix) : ''}</td>
+                                        <td style={{ padding: '2mm 0', verticalAlign: 'middle', textAlign: 'right', fontWeight: '600' }}>{!isFree ? formatMoney(ligne.prix * ligne.qte) : ''}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
 
                     {/* 4. TOTALS */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8mm' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4mm' }}>
                         <div style={{ width: '50%', fontSize: '8.5pt', color: '#777', fontStyle: 'italic' }}>
                             Arrêtée la présente facture à la somme de : <br />
                             <span style={{ fontWeight: '700', color: '#000', fontStyle: 'normal' }}>{numberToFrenchText(facture.montant)}</span>
@@ -159,16 +171,29 @@ const A4InvoiceDocument = ({ facture }) => {
                 </div>
 
                 {/* 5. FOOTER */}
-                <div style={{ marginTop: 'auto', borderTop: '1px solid #eee', paddingTop: '5mm', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '8pt', color: '#666' }}>
+                <div style={{ marginTop: 'auto', borderTop: '1px solid #eee', paddingTop: '3mm', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '8pt', color: '#666' }}>
                     <div style={{ flex: 2 }}>
+                        {/* STAMP / CACHET — gauche, au-dessus des coordonnées bancaires */}
+                        <img
+                            src="/stamp-mynds.png"
+                            alt="Cachet"
+                            style={{
+                                display: 'block',
+                                marginBottom: '3mm',
+                                width: '40mm',
+                                height: 'auto',
+                                opacity: 0.9,
+                                pointerEvents: 'none'
+                            }}
+                        />
                         <div style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: '1mm', color: '#000' }}>Coordonnées Bancaires</div>
                         <div style={{ display: 'flex', gap: '4mm' }}>
                             <div>Banque: <span style={{ fontWeight: '700', color: '#333' }}>{myndsInfo.banque}</span></div>
                             <div>RIB: <span style={{ fontWeight: '700', color: '#333' }}>{myndsInfo.rib}</span></div>
                         </div>
                     </div>
-                    <div style={{ flex: 1, textAlign: 'right' }}>
-                        <div style={{ fontWeight: '800', color: '#000', fontSize: '9pt' }}>MYNDS TEAM</div>
+                    <div style={{ flex: 1, textAlign: 'right', position: 'relative' }}>
+                        <div style={{ fontWeight: '800', color: '#000', fontSize: '9pt' }}>Mynds Team</div>
                         <div>Merci pour votre collaboration.</div>
                     </div>
                 </div>

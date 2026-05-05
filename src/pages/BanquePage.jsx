@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
-import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, Calendar, Banknote } from 'lucide-react';
+import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, Calendar, Banknote, Users, FileSpreadsheet, CreditCard, ShieldCheck, RotateCcw } from 'lucide-react';
 import { getBankTransactions, saveBankTransactions, getFactures, getClients, getStorage, setStorage } from '../services/storageService';
 import { generatePendingPersoCharges, PERSO_CATEGORIES } from '../utils/persoUtils';
+import ImportChargesModal from '../components/ImportChargesModal';
+import BankReconciliationTab from '../components/BankReconciliationTab';
 
 const BanquePage = () => {
     // Manual transactions
@@ -29,19 +31,41 @@ const BanquePage = () => {
     const [searchTerm, setSearchTerm] = useState('');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState(null);
     const [isTVAModalOpen, setIsTVAModalOpen] = useState(false);
     const [editingTVA, setEditingTVA] = useState(null);
 
-    const [activeTab, setActiveTab] = useState('Entrées'); // 'Entrées', 'Charges Mynds', 'Charges Perso', 'TVA'
-    
+    const [activeTab, setActiveTab] = useState('Entrées'); // 'Entrées', 'Charges Mynds', 'Charges RH', 'Charges CT', 'Charges TVA', 'TVA', 'Rapprochement'
+
     // Filters for Entrées
     const [entreesMonthFilter, setEntreesMonthFilter] = useState('all');
     const [entreesClientFilter, setEntreesClientFilter] = useState('all');
 
-    // Filters for Charges Mynds
+    // Filters for Charges Mynds & RH
     const [selectedMonthFilter, setSelectedMonthFilter] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+    
     const [chargeTypeFilter, setChargeTypeFilter] = useState('all'); // 'all', 'RH'
+
+    // Separate filters derived from selectedMonthFilter
+    // Separate filters derived from selectedMonthFilter
+    const [selYearStr, selMonthRaw] = selectedMonthFilter.split('-');
+    const selYear = parseInt(selYearStr, 10);
+    const selMonth = selMonthRaw === 'all' ? 'all' : parseInt(selMonthRaw, 10);
+
+    const handleYearChange = (year) => {
+        const parts = selectedMonthFilter.split('-');
+        setSelectedMonthFilter(`${year}-${parts[1]}`);
+    };
+ 
+    const handleMonthChange = (month) => {
+        const parts = selectedMonthFilter.split('-');
+        setSelectedMonthFilter(`${parts[0]}-${month}`);
+    };
+
+    const [isGroupedByRH, setIsGroupedByRH] = useState(false);
+    const [confirmResetId, setConfirmResetId] = useState(null);
+    const [rhClientFilter, setRhClientFilter] = useState('all');
 
     // TVA Transactions
     const [tvaTransactions, setTvaTransactions] = useState(() => getStorage('mynds_tva_achats', []));
@@ -131,28 +155,29 @@ const BanquePage = () => {
             return generated;
         });
 
-    // Extract target year/month for contract validation (used for Sponsoring)
-    const [selYearStr, selMonthStr] = selectedMonthFilter.split('-');
-    const targetY = parseInt(selYearStr, 10);
-    const targetM = parseInt(selMonthStr, 10) - 1; // 0-indexed
+    // Use the parsed year/month from above for contract validation (used for Sponsoring)
+    const targetY = selYear;
+    const targetM = selMonth === 'all' ? 0 : selMonth - 1; // Default to Jan if annual, or use actual month
 
     const isMonthInContract = (client, ty, tm) => {
         if (!client) return false;
         const targetDateObj = new Date(ty, tm, 1);
         const start = client.dateDebut && client.dateDebut !== '-' ? new Date(client.dateDebut) : new Date(2000, 0, 1);
-        
+
         let end;
-        if (client.dateFin) {
+        if (client.regime === 'One-Shot') {
+            end = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        } else if (client.dateFin) {
             end = new Date(client.dateFin);
         } else if (client.regime === 'Projet' && client.dureeMois) {
             end = new Date(start.getFullYear(), start.getMonth() + parseInt(client.dureeMois) - 1, start.getDate());
         } else {
             end = new Date(ty, 11, 31);
         }
-        
+
         const startMonthObj = new Date(start.getFullYear(), start.getMonth(), 1);
         const endMonthObj = new Date(end.getFullYear(), end.getMonth(), 1);
-        
+
         return targetDateObj >= startMonthObj && targetDateObj <= endMonthObj;
     };
 
@@ -164,10 +189,10 @@ const BanquePage = () => {
                 id: `auto-sponsoring-${s.id}-${selectedMonthFilter}`,
                 date: `${selectedMonthFilter}-10`, // Assume typically paid mid-month
                 desc: `Achat Sponsoring ${s.plateforme} - ${s.client}`,
-                bank: 'BIAT',
+                bank: 'Carte Technologique',
                 type: 'Debit',
                 amount: parseFloat(s.montantTNDBanque) || 0,
-                category: 'Charges',
+                category: 'Sponsoring',
                 chargeType: 'Exploitations',
                 chargeNature: 'Variables',
                 isAuto: true,
@@ -184,20 +209,35 @@ const BanquePage = () => {
         isIgnored: ignoredTxs.some(ignored => ignored.id === t.id)
     }));
 
-    // Extract unique RH names/roles dynamically for the filter dropdown
-    const uniqueRHNames = Array.from(new Set(
-        allTransactions
-            .filter(t => t.chargeType === 'RH' || t.category === 'Mynds Salaire' || t.desc.toLowerCase().includes('salaire'))
+    // Extract unique RH names/roles dynamically from both clients (database) and actual transactions
+    const baseEmployees = [];
+    clients.forEach(client => {
+        if (client.projectCosts) {
+            client.projectCosts.forEach(cost => {
+                const nom = cost.nom ? cost.nom.trim() : '';
+                if (nom && nom !== 'Inconnu') {
+                    baseEmployees.push(nom);
+                }
+            });
+        }
+    });
+
+    const uniqueRHNames = Array.from(new Set([
+        ...baseEmployees,
+        ...allTransactions
+            .filter(t => t.chargeType === 'RH' || t.category === 'Mynds Salaire' || (t.desc || '').toLowerCase().includes('salaire'))
             .map(t => {
-                if (t.desc.startsWith('Salaire ')) {
+                if (t.desc && t.desc.startsWith('Salaire ')) {
                     const parts = t.desc.split('-');
                     if (parts.length > 0) {
-                        return parts[0].replace('Salaire', '').trim();
+                        // Extract name, remove "Salaire", and remove project info in parentheses if present
+                        return parts[0].replace('Salaire', '').split('(')[0].trim();
                     }
                 }
+                return null;
             })
             .filter(Boolean)
-    )).sort();
+    ])).sort();
 
     const uniqueEntreesClients = Array.from(new Set(
         allTransactions
@@ -214,14 +254,18 @@ const BanquePage = () => {
             alert("❗ Opération refusée.\nLe montant d'une transaction ne peut pas être négatif.");
             return;
         }
-        
+
+        let newTxs;
         if (editingTransaction && editingTransaction.id !== undefined) {
             // C'est une vraie modification d'une transaction manuelle
-            setManualTransactions(manualTransactions.map(item => item.id === t.id ? t : item));
+            newTxs = manualTransactions.map(item => item.id === t.id ? t : item);
         } else {
             // Création d'une nouvelle transaction OU validation d'un draft (id n'existe pas encore dans manualTransactions)
-            setManualTransactions([...manualTransactions, { ...t, id: Date.now() }]);
+            newTxs = [...manualTransactions, { ...t, id: Date.now() }];
         }
+        
+        setManualTransactions(newTxs);
+        saveBankTransactions(newTxs);
 
         // Si c'est une charge perso récurrente, l'ajouter à la config si c'est nouveau
         if (t.category === 'Perso' && t.isRecurrent) {
@@ -230,7 +274,7 @@ const BanquePage = () => {
             const exists = configs.some(c => c.name === t.desc && c.category === t.persoCategory);
             if (!exists) {
                 const newConfig = {
-                    id: Date.now() + Math.floor(Math.random()*1000),
+                    id: Date.now() + Math.floor(Math.random() * 1000),
                     name: t.desc,
                     amount: t.amount,
                     category: t.persoCategory,
@@ -246,9 +290,21 @@ const BanquePage = () => {
         setEditingTransaction(null);
     };
 
+    const handleImportSave = (importedTransactions) => {
+        const newTransactions = [...manualTransactions, ...importedTransactions];
+        setManualTransactions(newTransactions);
+        saveBankTransactions(newTransactions);
+        setIsImportModalOpen(false);
+        alert(`${importedTransactions.length} transaction(s) importée(s) avec succès !`);
+    };
+
     const handleDelete = (id) => {
-        if (window.confirm("Supprimer cette transaction manuelle ?")) {
-            setManualTransactions(manualTransactions.filter(t => t.id !== id));
+        if (window.confirm("Voulez-vous supprimer définitivement cette transaction ?")) {
+            setManualTransactions(prev => {
+                const newTxs = prev.filter(t => t.id !== id);
+                saveBankTransactions(newTxs);
+                return newTxs;
+            });
         }
     };
 
@@ -300,32 +356,111 @@ const BanquePage = () => {
     };
 
     // 1. DATA Extraction for Salary Proposals
-    const [year, month] = selectedMonthFilter.split('-').map(n => parseInt(n, 10));
+    const [year, monthStr] = selectedMonthFilter.split('-').map(n => n);
+    const yearInt = parseInt(year, 10);
+    const isAnnualView = monthStr === 'all';
+    
     const currentMonthStr = selectedMonthFilter;
-    const currentMonthName = new Date(year, month - 1).toLocaleDateString('fr-FR', { month: 'long' });
+    const currentMonthName = !isAnnualView ? new Date(yearInt, parseInt(monthStr, 10) - 1).toLocaleDateString('fr-FR', { month: 'long' }) : 'Année';
 
-    const rhPaymentsCurrentMonth = manualTransactions.filter(t => 
-        (t.chargeType === 'RH' || t.chargeType === 'Ressources Humaines' || t.category === 'RH') && 
+    const sMonthStr = `${parseInt(monthStr, 10) === 1 ? yearInt - 1 : yearInt}-${String(parseInt(monthStr, 10) === 1 ? 12 : parseInt(monthStr, 10) - 1).padStart(2, '0')}`;
+    
+    const rhPaymentsCurrentMonth = allTransactions.filter(t =>
+        (t.chargeType === 'RH' || t.chargeType === 'Ressources Humaines' || t.category === 'RH') &&
         t.type === 'Debit' &&
-        t.serviceMonth === currentMonthStr
+        t.serviceMonth === sMonthStr
     );
 
     const salaryProposals = [];
-    clients.filter(c => c.etatClient === 'Actif').forEach(client => {
+    const sMonth = parseInt(monthStr, 10) === 1 ? 12 : parseInt(monthStr, 10) - 1;
+    const sYear = parseInt(monthStr, 10) === 1 ? yearInt - 1 : yearInt;
+    const sMonthName = new Date(sYear, sMonth - 1).toLocaleDateString('fr-FR', { month: 'long' });
+
+    // Mutable pools to handle multiple entries for same person/project
+    let availableRHPayments = [...rhPaymentsCurrentMonth];
+    let availableIgnoredTxs = [...ignoredTxs];
+
+    clients.filter(c => c.etatClient === 'Actif' && !isAnnualView && isMonthInContract(c, sYear, sMonth - 1)).forEach(client => {
+        if (rhClientFilter !== 'all' && client.enseigne !== rhClientFilter) return;
+
         if (client.projectCosts) {
             client.projectCosts.forEach(cost => {
                 const amount = parseFloat(cost.montant) || 0;
                 if (amount > 0) {
-                    const isPaid = rhPaymentsCurrentMonth.some(p => 
-                        p.desc?.toLowerCase().includes(cost.nom?.toLowerCase()) || 
-                        (cost.nom && p.desc?.toLowerCase().includes(cost.nom.toLowerCase()))
-                    );
+                    // Check if this cost was active during the SERVICE month (M-1)
+                    const targetStart = `${sYear}-${String(sMonth).padStart(2, '0')}-01`;
+                    const lastDay = new Date(sYear, sMonth, 0).getDate();
+                    const targetEnd = `${sYear}-${String(sMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                    
+                    const cStart = (cost.dateDebut || '1970-01-01').split('T')[0];
+                    const cEnd = (cost.dateFin || '2099-12-31').split('T')[0];
 
-                    if (!isPaid) {
+                    const isActiveThisMonth = (cStart <= targetEnd) && (cEnd >= targetStart);
+                    if (!isActiveThisMonth) return;
+
+                    // Match logic: Priority to same amount, then any match for Name+Project
+                    const findMatch = (pool, targetCost, targetClient, targetAmount) => {
+                        const nameLower = (targetCost.nom || '').toLowerCase();
+                        const projectLower = (targetClient.enseigne || '').toLowerCase();
+                        
+                        // 1. Priority Match: Name + Project + Amount
+                        let idx = pool.findIndex(p => {
+                            if (p.isIgnored) return false;
+                            const descLower = (p.desc || '').toLowerCase();
+                            const matchesName = nameLower && descLower.includes(nameLower);
+                            const matchesProject = projectLower && descLower.includes(projectLower);
+                            const matchesAmount = Math.abs((parseFloat(p.amount) || 0) - targetAmount) < 0.01;
+                            return matchesName && matchesProject && matchesAmount;
+                        });
+
+                        // 2. Fallback Match: Name + Project (any amount)
+                        if (idx === -1) {
+                            idx = pool.findIndex(p => {
+                                if (p.isIgnored) return false;
+                                const descLower = (p.desc || '').toLowerCase();
+                                const matchesName = nameLower && descLower.includes(nameLower);
+                                const matchesProject = projectLower && descLower.includes(projectLower);
+                                return matchesName && matchesProject;
+                            });
+                        }
+                        return idx;
+                    };
+
+                    const txIdx = findMatch(availableRHPayments, cost, client, amount);
+                    const activePayment = txIdx !== -1 ? availableRHPayments[txIdx] : null;
+                    if (activePayment) availableRHPayments.splice(txIdx, 1);
+
+                    const archIdx = findMatch(availableIgnoredTxs.filter(p => p.serviceMonth === `${sYear}-${String(sMonth).padStart(2, '0')}`), cost, client, amount);
+                    const archivedPayment = archIdx !== -1 ? availableIgnoredTxs[archIdx] : null;
+                    // Note: simplified splice for archived if needed, but archive check is mostly to hide
+                    if (archivedPayment) {
+                         const actualIdx = availableIgnoredTxs.findIndex(p => p.id === archivedPayment.id);
+                         if (actualIdx !== -1) availableIgnoredTxs.splice(actualIdx, 1);
+                    }
+
+                    // If it's already archived/ignored, don't show it in the propositions table at all
+                    if (archivedPayment) return;
+
+                    const isPaid = !!activePayment;
+
+                    let filterMatches = true;
+                    if (chargeTypeFilter !== 'all' && chargeTypeFilter.startsWith('RH-')) {
+                        const specificName = chargeTypeFilter.replace('RH-', '').toLowerCase();
+                        if (!cost.nom || !cost.nom.toLowerCase().includes(specificName)) {
+                            filterMatches = false;
+                        }
+                    }
+
+                    if (filterMatches) {
                         salaryProposals.push({
                             name: cost.nom || 'Inconnu',
                             project: client.enseigne,
-                            amount: amount
+                            amount: amount,
+                            isPaid: isPaid,
+                            transaction: activePayment ? activePayment : null,
+                            serviceMonthName: sMonthName,
+                            serviceYear: sYear,
+                            serviceMonthStr: `${sYear}-${String(sMonth).padStart(2, '0')}`
                         });
                     }
                 }
@@ -333,27 +468,67 @@ const BanquePage = () => {
         }
     });
 
+    // Grouping Logic for "Propositions de Salaires"
+    const finalSalaryProposals = React.useMemo(() => {
+        if (!isGroupedByRH) return salaryProposals;
+        const grouped = salaryProposals.reduce((acc, curr) => {
+            const key = curr.name;
+            if (!acc[key]) {
+                acc[key] = { ...curr };
+            } else {
+                if (!acc[key].project.includes(curr.project)) {
+                    acc[key].project += `, ${curr.project}`;
+                }
+                acc[key].amount += curr.amount;
+            }
+            return acc;
+        }, {});
+        return Object.values(grouped);
+    }, [salaryProposals, isGroupedByRH]);
+
     const handleValidateSalary = (items) => {
-        const confirmMsg = items.length > 1 
-            ? `Valider le paiement de ${items.length} salaires ?` 
-            : `Confirmer le paiement du salaire de ${items[0].name} (${formatMoney(items[0].amount)}) ?`;
-
-        if (!window.confirm(confirmMsg)) return;
-
-        const newTxs = [...manualTransactions];
-        items.forEach(item => {
-            const paymentDate = new Date(year, month - 1, 5).toISOString().split('T')[0];
-            newTxs.push({
-                id: generateId('TRX'),
+        // Individual validation passes through the sleek TransactionModal
+        if (items.length === 1) {
+            const item = items[0];
+            const paymentDate = !isAnnualView ? new Date(yearInt, parseInt(monthStr, 10) - 1, 5).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            setEditingTransaction({
                 date: new Date().toISOString().split('T')[0],
-                desc: `Salaire ${item.name} - ${currentMonthName} ${year}`,
+                desc: `Salaire ${item.name} (${item.project}) - ${item.serviceMonthName} ${item.serviceYear}`,
                 bank: 'BIAT',
                 type: 'Debit',
                 amount: item.amount,
                 category: 'Charges',
                 chargeType: 'RH',
                 chargeNature: 'Fixes',
-                serviceMonth: currentMonthStr,
+                serviceMonth: item.serviceMonthStr,
+                paymentDate: paymentDate,
+                isAuto: false
+            });
+            setIsModalOpen(true);
+            return;
+        }
+
+        // Bulk validation case
+        const confirmMsg = `Valider le paiement de ${items.length} salaires d'un coup ?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        let chosenBank = window.prompt("Source de paiement globale pour ces salaires ?\n(Ex: BIAT, QNB, Espèces, Capital Personnel)", "BIAT");
+        if (!chosenBank) return;
+
+        const newTxs = [...manualTransactions];
+        items.forEach((item, idx) => {
+            const paymentDate = !isAnnualView ? new Date(yearInt, parseInt(monthStr, 10) - 1, 5).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            newTxs.push({
+                id: Date.now() + idx + Math.floor(Math.random() * 1000),
+                date: new Date().toISOString().split('T')[0],
+                desc: `Salaire ${item.name} (${item.project}) - ${item.serviceMonthName} ${item.serviceYear}`,
+                bank: chosenBank,
+                type: 'Debit',
+                amount: item.amount,
+                category: 'Charges',
+                chargeType: 'RH',
+                chargeNature: 'Fixes',
+                serviceMonth: item.serviceMonthStr,
                 paymentDate: paymentDate,
                 isAuto: false
             });
@@ -361,7 +536,149 @@ const BanquePage = () => {
 
         setManualTransactions(newTxs);
         saveBankTransactions(newTxs);
-        alert(items.length > 1 ? "Salaires validés." : "Salaire validé.");
+        alert("Salaires validés en lot.");
+    };
+
+    const tvaVentesProposals = React.useMemo(() => {
+        if (activeTab !== 'Charges TVA') return [];
+        const proposals = [];
+        factures.forEach(f => {
+            if (f.tva > 0 && f.statut !== 'Archived' && f.statut !== 'Draft') {
+                const alreadyPaid = manualTransactions.some(t => t.category === 'TVA Ventes' && t.originalId === f.id);
+                const isIgnored = ignoredTxs.some(t => t.category === 'TVA Ventes' && t.originalId === f.id);
+                if (!alreadyPaid && !isIgnored) {
+                    proposals.push({
+                        id: f.id,
+                        client: f.client,
+                        date: f.dateEmi,
+                        amount: f.tva,
+                        statut: f.statut,
+                        originalId: f.id,
+                        isPaid: false
+                    });
+                }
+            }
+        });
+        return proposals.sort((a,b) => new Date(b.date) - new Date(a.date));
+    }, [activeTab, factures, manualTransactions, ignoredTxs]);
+
+    const handleValidateTVA = (items) => {
+        if (items.length === 1) {
+            const item = items[0];
+            setEditingTransaction({
+                date: new Date().toISOString().split('T')[0],
+                desc: `Paiement TVA - Facture ${item.id} (${item.client})`,
+                bank: 'BIAT',
+                type: 'Debit',
+                amount: item.amount,
+                category: 'TVA Ventes',
+                chargeType: 'Exploitations',
+                chargeNature: 'Variables',
+                isAuto: false,
+                originalId: item.originalId
+            });
+            setIsModalOpen(true);
+            return;
+        }
+
+        const confirmMsg = `Valider le paiement de TVA pour ${items.length} factures d'un coup ?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        let chosenBank = window.prompt("Source de paiement globale pour ces montants de TVA ?\n(Ex: BIAT, QNB, Espèces)", "BIAT");
+        if (!chosenBank) return;
+
+        const newTxs = [...manualTransactions];
+        items.forEach((item, idx) => {
+            newTxs.push({
+                id: Date.now() + idx + Math.floor(Math.random() * 1000),
+                date: new Date().toISOString().split('T')[0],
+                desc: `Paiement TVA - Facture ${item.id} (${item.client})`,
+                bank: chosenBank,
+                type: 'Debit',
+                amount: item.amount,
+                category: 'TVA Ventes',
+                chargeType: 'Exploitations',
+                chargeNature: 'Variables',
+                isAuto: false,
+                originalId: item.originalId
+            });
+        });
+
+        setManualTransactions(newTxs);
+        saveBankTransactions(newTxs);
+        alert("Paiements TVA validés en lot.");
+    };
+
+    const handleIgnoreTVA = (item) => {
+        if (!window.confirm(`Ignorer/Masquer la TVA de la facture ${item.id} ?`)) return;
+        
+        const shadowTx = {
+            id: Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            desc: `Ignoré: TVA Facture ${item.id}`,
+            bank: 'N/A',
+            type: 'Debit',
+            amount: item.amount,
+            category: 'TVA Ventes',
+            originalId: item.originalId,
+            isIgnored: true
+        };
+
+        setIgnoredTxs([...ignoredTxs, shadowTx]);
+    };
+
+    const handleIgnoreProposal = (item) => {
+        if (!window.confirm(`Ignorer définitivement le salaire de ${item.name} pour la période ${item.serviceMonthName} ${item.serviceYear} ?\n\nCette action le déplacera vers l'archive.`)) return;
+        
+        const shadowTx = {
+            id: Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            desc: `Ignoré: Salaire ${item.name} - ${item.serviceMonthName} ${item.serviceYear}`,
+            bank: 'N/A',
+            type: 'Debit',
+            amount: item.amount,
+            category: 'Charges',
+            chargeType: 'RH',
+            chargeNature: 'Fixes',
+            serviceMonth: item.serviceMonthStr,
+            isIgnored: true
+        };
+
+        setIgnoredTxs([...ignoredTxs, shadowTx]);
+    };
+
+    const handleResetSalary = (proposal) => {
+        try {
+            if (!proposal || !proposal.transaction || !proposal.transaction.id) {
+                alert("Erreur : Aucune transaction associée trouvée.");
+                setConfirmResetId(null);
+                return;
+            }
+
+            const targetId = proposal.transaction.id;
+            const currentTxs = getBankTransactions() || [];
+            const newTxs = currentTxs.filter(t => String(t.id) !== String(targetId));
+
+            if (newTxs.length === currentTxs.length) {
+                alert("Erreur : Impossible de trouver la transaction dans le stockage.");
+                setConfirmResetId(null);
+                return;
+            }
+
+            saveBankTransactions(newTxs);
+            setManualTransactions(newTxs);
+            
+            // Sync events
+            window.dispatchEvent(new Event('storage'));
+            window.dispatchEvent(new CustomEvent('mynds_data_updated'));
+            
+            setConfirmResetId(null);
+            console.log("✅ Reset Salary Successful");
+        } catch (err) {
+            console.error("❌ Reset Salary Error:", err);
+            alert("Erreur : " + err.message);
+            setConfirmResetId(null);
+        }
     };
 
     const balanceBIAT = allTransactions
@@ -376,10 +693,17 @@ const BanquePage = () => {
         .filter(t => t.bank === 'Espèces' && !t.isDraft && !t.isIgnored)
         .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
 
+    const totalVirementsCT = allTransactions
+        .filter(t => t.category === 'Charges CT' && !t.isDraft && !t.isIgnored)
+        .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+    const totalAchatsSponsoring = sponsoringList
+        .reduce((acc, curr) => acc + (parseFloat(curr.montantTNDBanque) || 0), 0);
+    const totalChargesCT = totalVirementsCT - totalAchatsSponsoring;
+
     const filteredTransactions = allTransactions
-        .filter(t => !t.isIgnored) // Hide ignored transactions entirely from Banque
-        .filter(t => selectedBank === 'all' || t.bank === selectedBank)
-        .filter(t => t.desc.toLowerCase().includes(searchTerm.toLowerCase()))
+        .filter(t => !t.isIgnored) 
+        .filter(t => t.bank === selectedBank || selectedBank === 'all')
+        .filter(t => (t.desc || '').toLowerCase().includes(searchTerm.toLowerCase()))
         .filter(t => {
             if (activeTab === 'Entrées') {
                 if (t.type !== 'Credit') return false;
@@ -390,35 +714,65 @@ const BanquePage = () => {
                 if (entreesClientFilter !== 'all') {
                     // Check if the client name is part of the description, case-insensitive
                     // Assuming client name is typically found after "Facture " or similar
-                    const clientNameInDesc = t.desc.toLowerCase().includes(entreesClientFilter.toLowerCase());
+                    const clientNameInDesc = (t.desc || '').toLowerCase().includes(entreesClientFilter.toLowerCase());
                     if (!clientNameInDesc) return false;
                 }
                 return true;
             }
-            if (activeTab === 'Charges Mynds') {
+            if (activeTab === 'Charges Mynds' || activeTab === 'Charges RH') {
                 if (t.type !== 'Debit' || t.category === 'Perso') return false;
-                // Specific "Charges Mynds" Tab Filters
-                if (selectedMonthFilter && t.serviceMonth !== selectedMonthFilter) return false;
                 
-                const isRHCharge = t.chargeType === 'RH' || t.category === 'Mynds Salaire' || t.desc.toLowerCase().includes('salaire');
-                
-                if (chargeTypeFilter === 'RH') {
-                    return isRHCharge;
-                } else if (chargeTypeFilter.startsWith('RH-')) {
-                    const specificName = chargeTypeFilter.replace('RH-', '');
-                    return isRHCharge && t.desc.includes(specificName);
+                const [filterYear, filterMonth] = selectedMonthFilter.split('-');
+                if (filterMonth === 'all') {
+                    if (!t.date || t.date.split('-')[0] !== filterYear) return false;
+                } else {
+                    if (t.date && t.date.substring(0, 7) !== selectedMonthFilter) return false;
                 }
-                
-                return true;
+
+                const isRHCharge = t.chargeType === 'RH' || t.category === 'Mynds Salaire' || (t.desc || '').toLowerCase().includes('salaire');
+
+                if (activeTab === 'Charges Mynds') {
+                    if (isRHCharge) return false;
+                    if (t.category === 'Sponsoring') return false;
+                    if (t.category === 'Charges CT') return false;
+                    if (t.category === 'TVA Ventes') return false;
+                    return true;
+                }
+
+                if (activeTab === 'Charges RH') {
+                    if (!isRHCharge) return false;
+                    
+                    // Filter by Employee
+                    if (chargeTypeFilter !== 'all' && chargeTypeFilter.startsWith('RH-')) {
+                        const specificName = chargeTypeFilter.replace('RH-', '').toLowerCase();
+                        if (!(t.desc || '').toLowerCase().includes(specificName)) return false;
+                    }
+
+                    // Filter by Client
+                    if (rhClientFilter !== 'all') {
+                        const targetClient = clients.find(c => c.enseigne === rhClientFilter);
+                        if (targetClient && targetClient.projectCosts) {
+                            const employeeNames = targetClient.projectCosts.map(pc => pc.nom?.toLowerCase()).filter(Boolean);
+                            const matches = employeeNames.some(name => (t.desc || '').toLowerCase().includes(name));
+                            if (!matches) return false;
+                        } else {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
             }
-            if (activeTab === 'Charges Perso') return t.type === 'Debit' && t.category === 'Perso';
+            if (activeTab === 'Charges CT') return t.type === 'Debit' && (t.category === 'Charges CT' || t.category === 'Sponsoring');
+            if (activeTab === 'Charges TVA') return t.type === 'Debit' && t.category === 'TVA Ventes';
             return false;
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const totalTVA = tvaTransactions.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
     const filteredTVA = tvaTransactions
-        .filter(t => t.fournisseur.toLowerCase().includes(searchTerm.toLowerCase()))
+        .filter(t => t.statut !== 'Archived')
+        .filter(t => (t.fournisseur || '').toLowerCase().includes(searchTerm.toLowerCase()))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return (
@@ -427,7 +781,7 @@ const BanquePage = () => {
 
             {/* TOP LAYOUT: 70% Balances / 30% Expected Transfers Timeline */}
             <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', alignItems: 'stretch' }}>
-                
+
                 {/* LEFT COLUMN: Balances */}
                 <div style={{ flex: '2', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {/* Total Global Mini Card */}
@@ -457,7 +811,13 @@ const BanquePage = () => {
                                 </div>
                                 <div style={{ background: 'rgba(255,193,5,0.2)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: 'var(--accent-gold)' }}>SOCIÉTÉ</div>
                             </div>
-                            <div style={{ fontSize: '20px', fontWeight: '900', marginTop: '12px' }}>{formatMoney(balanceBIAT)}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
+                                <div style={{ fontSize: '20px', fontWeight: '900' }}>{formatMoney(balanceBIAT)}</div>
+                                <div style={{ fontSize: '10px', fontWeight: '800', color: '#c4b5fd', background: 'rgba(139, 92, 246, 0.2)', padding: '4px 8px', borderRadius: '6px', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(139, 92, 246, 0.3)' }} title="Total des versements vers la Carte Technologique">
+                                    <CreditCard size={12} />
+                                    Carte Tech: {formatMoney(totalChargesCT)}
+                                </div>
+                            </div>
                         </div>
 
                         {/* QNB Card */}
@@ -518,13 +878,13 @@ const BanquePage = () => {
                             factures.forEach(f => {
                                 if (f.statut === 'Sent' || f.statut === 'Late') {
                                     let calculatedDate;
-                                    
+
                                     // IGNORER L'ECHEANCE DE LA FACTURE : TOUJOURS CALCULER DEPUIS LA FICHE CLIENT EN TEMPS RÉEL
                                     const clientRef = activeClients.find(c => c.id === f.clientId || c.enseigne === f.client);
-                                    
+
                                     if (clientRef) {
                                         const delay = parseInt(clientRef.delaiPaiement, 10);
-                                        
+
                                         if (!isNaN(delay)) {
                                             // Priority 1: User defined delay (e.g., 30 days, 60 days)
                                             const emiObj = new Date(f.dateEmi);
@@ -536,7 +896,7 @@ const BanquePage = () => {
                                             const emiObj = new Date(f.dateEmi);
                                             let targetM = emiObj.getMonth();
                                             let targetY = emiObj.getFullYear();
-                                            
+
                                             // If emission date passed the monthly payment day, it cascades to the next month
                                             if (emiObj.getDate() > dPay) {
                                                 targetM += 1;
@@ -545,7 +905,7 @@ const BanquePage = () => {
                                                     targetY += 1;
                                                 }
                                             }
-                                            
+
                                             const targetDateObj = new Date(targetY, targetM, dPay);
                                             calculatedDate = `${targetDateObj.getFullYear()}-${String(targetDateObj.getMonth() + 1).padStart(2, '0')}-${String(targetDateObj.getDate()).padStart(2, '0')}`;
                                         } else if (clientRef.regime === 'One-Shot' && clientRef.datePaiement) {
@@ -584,16 +944,16 @@ const BanquePage = () => {
                                         const d = f.periodeDebut ? new Date(f.periodeDebut) : new Date(f.dateEmi);
                                         return !isNaN(d.getTime()) && d.getFullYear() === currentY && d.getMonth() === currentM;
                                     });
-                                    
+
                                     if (!hasInvoiceThisMonth) {
                                         const estimatedTTC = (c.montantMensuel || 0) * (c.sousTVA === false ? 1 : 1.19);
                                         if (estimatedTTC > 0) {
                                             const dPay = parseInt(c.jourPaiement, 10) || 5;
                                             const targetDateObj = new Date(currentY, currentM + 1, dPay);
                                             const exactDueDate = `${targetDateObj.getFullYear()}-${String(targetDateObj.getMonth() + 1).padStart(2, '0')}-${String(targetDateObj.getDate()).padStart(2, '0')}`;
-                                            
-                                            let periodLabel = `Mois ${String(currentM+1).padStart(2,'0')}`;
-                                            if (c.modeCycle === 'Du 15 au 14') periodLabel = `15/${String(currentM+1).padStart(2,'0')} - 14/${String(targetDateObj.getMonth()+1).padStart(2,'0')}`;
+
+                                            let periodLabel = `Mois ${String(currentM + 1).padStart(2, '0')}`;
+                                            if (c.modeCycle === 'Du 15 au 14') periodLabel = `15/${String(currentM + 1).padStart(2, '0')} - 14/${String(targetDateObj.getMonth() + 1).padStart(2, '0')}`;
                                             else if (c.modeCycle === 'Personnalisé' || c.modeCycle === 'Date de début') periodLabel = `Cycle du ${c.jourCycle}`;
 
                                             pendingAlerts.push({
@@ -609,7 +969,7 @@ const BanquePage = () => {
                                     }
                                 }
                             });
-                            
+
                             pendingAlerts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
                             if (pendingAlerts.length === 0) {
@@ -619,8 +979,8 @@ const BanquePage = () => {
                             return pendingAlerts.map(alert => {
                                 const dayObj = new Date(alert.date);
                                 const formatDay = !isNaN(dayObj) ? String(dayObj.getDate()).padStart(2, '0') : '??';
-                                const formatMonthStr = !isNaN(dayObj) ? dayObj.toLocaleString('fr-FR', {month: 'short'}) : '???';
-                                
+                                const formatMonthStr = !isNaN(dayObj) ? dayObj.toLocaleString('fr-FR', { month: 'short' }) : '???';
+
                                 return (
                                     <div key={alert.id} style={{
                                         display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderRadius: '10px',
@@ -665,88 +1025,172 @@ const BanquePage = () => {
             </div>
 
             {/* Tab Navigation */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+            <div style={{ 
+                display: 'flex', 
+                gap: '4px', 
+                marginBottom: '16px', 
+                borderBottom: '1px solid var(--border-color)', 
+                paddingBottom: '8px',
+                overflowX: 'auto',
+                whiteSpace: 'nowrap',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+            }}>
+                <style>{`
+                    div::-webkit-scrollbar { display: none; }
+                `}</style>
                 <button
                     onClick={() => setActiveTab('Entrées')}
                     style={{
-                        padding: '10px 24px',
-                        borderRadius: '12px',
+                        padding: '6px 16px',
+                        borderRadius: '10px',
                         border: 'none',
                         background: activeTab === 'Entrées' ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
                         color: activeTab === 'Entrées' ? '#10b981' : 'var(--text-muted)',
-                        fontSize: '14px',
+                        fontSize: '12px',
                         fontWeight: '800',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px'
+                        gap: '6px',
+                        flexShrink: 0
                     }}
                 >
-                    <ArrowDownLeft size={18} /> Entrées (Recettes)
+                    <ArrowDownLeft size={16} /> Entrées
+                </button>
+
+                <button
+                    onClick={() => setActiveTab('Rapprochement')}
+                    style={{
+                        padding: '6px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: activeTab === 'Rapprochement' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
+                        color: activeTab === 'Rapprochement' ? '#8b5cf6' : 'var(--text-main)',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexShrink: 0,
+                        border: activeTab === 'Rapprochement' ? '1px solid #8b5cf6' : '1px solid transparent'
+                    }}
+                >
+                    <ShieldCheck size={16} /> Rapprochement
                 </button>
                 <button
                     onClick={() => setActiveTab('Charges Mynds')}
                     style={{
-                        padding: '10px 24px',
-                        borderRadius: '12px',
+                        padding: '6px 16px',
+                        borderRadius: '10px',
                         border: 'none',
                         background: activeTab === 'Charges Mynds' ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
                         color: activeTab === 'Charges Mynds' ? '#ef4444' : 'var(--text-muted)',
-                        fontSize: '14px',
+                        fontSize: '12px',
                         fontWeight: '800',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px'
+                        gap: '6px',
+                        flexShrink: 0
                     }}
                 >
-                    <ArrowUpRight size={18} /> Charges Mynds
+                    <ArrowUpRight size={16} /> Mynds
                 </button>
                 <button
-                    onClick={() => setActiveTab('Charges Perso')}
+                    onClick={() => setActiveTab('Charges RH')}
                     style={{
-                        padding: '10px 24px',
-                        borderRadius: '12px',
+                        padding: '6px 16px',
+                        borderRadius: '10px',
                         border: 'none',
-                        background: activeTab === 'Charges Perso' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                        color: activeTab === 'Charges Perso' ? '#f59e0b' : 'var(--text-muted)',
-                        fontSize: '14px',
+                        background: activeTab === 'Charges RH' ? 'rgba(202, 138, 4, 0.1)' : 'transparent',
+                        color: activeTab === 'Charges RH' ? '#ca8a04' : 'var(--text-muted)',
+                        fontSize: '12px',
                         fontWeight: '800',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px'
+                        gap: '6px',
+                        flexShrink: 0
                     }}
                 >
-                    <ArrowUpRight size={18} /> Charges Perso
+                    <Users size={16} /> RH
                 </button>
-                <div style={{ width: '1px', background: 'var(--border-color)', margin: '0 8px' }}></div>
+
+                <button
+                    onClick={() => setActiveTab('Charges CT')}
+                    style={{
+                        padding: '6px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: activeTab === 'Charges CT' ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                        color: activeTab === 'Charges CT' ? '#8b5cf6' : 'var(--text-muted)',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexShrink: 0
+                    }}
+                >
+                    <CreditCard size={16} /> CT
+                </button>
+                <button
+                    onClick={() => setActiveTab('Charges TVA')}
+                    style={{
+                        padding: '6px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: activeTab === 'Charges TVA' ? 'rgba(2, 132, 199, 0.1)' : 'transparent',
+                        color: activeTab === 'Charges TVA' ? '#0284c7' : 'var(--text-muted)',
+                        fontSize: '12px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexShrink: 0
+                    }}
+                >
+                    <Landmark size={16} /> TVA Mynds
+                </button>
+
                 <button
                     onClick={() => setActiveTab('TVA')}
                     style={{
-                        padding: '10px 24px',
-                        borderRadius: '12px',
+                        padding: '6px 16px',
+                        borderRadius: '10px',
                         border: 'none',
                         background: activeTab === 'TVA' ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
                         color: activeTab === 'TVA' ? '#0284c7' : 'var(--text-muted)',
-                        fontSize: '14px',
+                        fontSize: '12px',
                         fontWeight: '800',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px'
+                        gap: '6px'
                     }}
                 >
-                    <Calculator size={18} /> TVA (Achats)
+                    <Calculator size={16} /> TVA Achats
                 </button>
+
+
             </div>
 
             {/* Transactions Section */}
-            <div className="card" style={{ padding: '24px', borderRadius: '24px', marginTop: '24px' }}>
+            {activeTab !== 'Rapprochement' ? (
+                <>
+                <div className="card" style={{ padding: '24px', borderRadius: '24px', marginTop: '24px' }}>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <div>
                         <h2 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>
@@ -755,12 +1199,12 @@ const BanquePage = () => {
                             {activeTab === 'Charges Perso' && 'Historique des Charges Perso'}
                             {activeTab === 'TVA' && 'Registre de la TVA Collectée (Achats)'}
                         </h2>
-                        <div style={{ fontSize: '12px', fontWeight: '800', color: (activeTab === 'Entrées' || activeTab === 'TVA') ? '#10b981' : '#ef4444', textTransform: 'uppercase', marginTop: '2px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: (activeTab === 'Entrées' || activeTab === 'TVA') ? '#10b981' : (activeTab === 'Charges RH' ? '#ca8a04' : '#ef4444'), textTransform: 'uppercase', marginTop: '2px' }}>
                             Total • {formatMoney(activeTab === 'TVA' ? totalTVA : filteredTransactions.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0))}
                         </div>
                     </div>
-                    
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', overflowX: 'auto', paddingBottom: '4px' }} className="no-scrollbar">
                         <div style={{ position: 'relative' }}>
                             <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                             <input
@@ -793,73 +1237,269 @@ const BanquePage = () => {
                             </>
                         )}
 
-                        {activeTab === 'Charges Mynds' && (
+                        {(activeTab === 'Charges Mynds' || activeTab === 'Charges RH') && (
                             <>
-                                <input
-                                    type="month"
-                                    value={selectedMonthFilter}
-                                    onChange={e => setSelectedMonthFilter(e.target.value)}
-                                    style={{ padding: '7px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', color: '#ef4444', outline: 'none' }}
-                                />
-                                <select
-                                    value={chargeTypeFilter}
-                                    onChange={e => setChargeTypeFilter(e.target.value)}
-                                    style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: chargeTypeFilter.startsWith('RH') ? '#3b82f6' : 'var(--text-main)' }}
-                                >
-                                    <option value="all">Toutes Charges</option>
-                                    <option value="RH">Toutes RH</option>
-                                    {uniqueRHNames.map(name => (
-                                        <option key={name} value={`RH-${name}`}>👤 {name}</option>
-                                    ))}
-                                </select>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <select
+                                        value={selYear}
+                                        onChange={e => handleYearChange(e.target.value)}
+                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: activeTab === 'Charges RH' ? '#ca8a04' : '#ef4444', outline: 'none' }}
+                                    >
+                                        {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                    <select
+                                        value={String(selMonth).padStart(2, '0')}
+                                        onChange={e => handleMonthChange(e.target.value)}
+                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: activeTab === 'Charges RH' ? '#ca8a04' : '#ef4444', outline: 'none' }}
+                                    >
+                                        <option value="all">Tous les mois (ANNUEL)</option>
+                                        {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
+                                            <option key={m} value={m}>{['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'][i]}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {activeTab === 'Charges RH' && (
+                                    <>
+                                        <select
+                                            value={chargeTypeFilter}
+                                            onChange={e => setChargeTypeFilter(e.target.value)}
+                                            style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: chargeTypeFilter.startsWith('RH') ? '#ca8a04' : 'var(--text-main)' }}
+                                        >
+                                            <option value="all">Tous Employés</option>
+                                            {uniqueRHNames.map(name => (
+                                                <option key={name} value={`RH-${name}`}>👤 {name}</option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={rhClientFilter}
+                                            onChange={e => setRhClientFilter(e.target.value)}
+                                            style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: rhClientFilter !== 'all' ? '#ca8a04' : 'var(--text-main)' }}
+                                        >
+                                            <option value="all">Tous Clients</option>
+                                            {activeClients.map(c => (
+                                                <option key={c.id} value={c.enseigne}>🏢 {c.enseigne}</option>
+                                            ))}
+                                        </select>
+                                    </>
+                                )}
                             </>
                         )}
 
-                        <button
-                            onClick={() => {
-                                if (activeTab === 'TVA') {
-                                    setEditingTVA(null);
-                                    setIsTVAModalOpen(true);
-                                } else {
-                                    setEditingTransaction(null);
-                                    setIsModalOpen(true);
-                                }
-                            }}
-                            style={{ padding: '8px 16px', borderRadius: '12px', border: 'none', background: activeTab === 'TVA' ? '#0284c7' : 'var(--text-main)', color: 'white', fontSize: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                        >
-                            <Plus size={16} /> Ajouter
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            {(activeTab === 'Charges Mynds' || activeTab === 'Charges Perso' || activeTab === 'Charges CT') && (
+                                <button
+                                    onClick={() => setIsImportModalOpen(true)}
+                                    style={{ padding: '8px 16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'white', color: 'var(--text-main)', fontSize: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}
+                                >
+                                    <FileSpreadsheet size={16} color={activeTab === 'Charges Perso' ? '#f59e0b' : activeTab === 'Charges CT' ? '#8b5cf6' : '#ca8a04'} /> Importer
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    if (activeTab === 'TVA') {
+                                        setEditingTVA(null);
+                                        setIsTVAModalOpen(true);
+                                    } else {
+                                        setEditingTransaction(null);
+                                        setIsModalOpen(true);
+                                    }
+                                }}
+                                style={{ padding: '8px 16px', borderRadius: '12px', border: 'none', background: activeTab === 'TVA' ? '#0284c7' : 'var(--text-main)', color: 'white', fontSize: '12px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            >
+                                <Plus size={16} /> Ajouter
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {activeTab === 'Charges Mynds' && salaryProposals.length > 0 && (
-                    <div style={{ background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%)', border: '1px solid rgba(139, 92, 246, 0.2)', borderRadius: '20px', padding: '20px', marginBottom: '24px', boxShadow: '0 10px 30px rgba(139, 92, 246, 0.05)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                {activeTab === 'Charges RH' && salaryProposals.length > 0 && (
+                    <div style={{ background: 'linear-gradient(135deg, rgba(202, 138, 4, 0.05) 0%, rgba(202, 138, 4, 0.1) 100%)', border: '1px solid rgba(202, 138, 4, 0.2)', borderRadius: '16px', padding: '12px 16px', marginBottom: '16px', boxShadow: '0 8px 24px rgba(202, 138, 4, 0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#8b5cf6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#ca8a04', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Banknote size={20} />
                                 </div>
-                                <div>
-                                    <h3 style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Propositions de Salaires</h3>
-                                    <p style={{ fontSize: '11px', color: 'rgba(139, 92, 246, 0.8)', fontWeight: '700', textTransform: 'uppercase', margin: 0 }}>Basé sur fiches projets - {currentMonthName}</p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div>
+                                        <h3 style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Propositions de Salaires</h3>
+                                        <p style={{ fontSize: '11px', color: 'rgba(202, 138, 4, 0.8)', fontWeight: '700', textTransform: 'uppercase', margin: 0 }}>Paiement prévu le 05/{monthStr} - Travail de {salaryProposals[0]?.serviceMonthName || '...'} {salaryProposals[0]?.serviceYear || yearInt}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsGroupedByRH(!isGroupedByRH)}
+                                        style={{ 
+                                            padding: '4px 10px', 
+                                            borderRadius: '8px', 
+                                            border: '1px solid rgba(202, 138, 4, 0.3)', 
+                                            background: isGroupedByRH ? '#ca8a04' : 'transparent', 
+                                            color: isGroupedByRH ? 'white' : '#ca8a04', 
+                                            fontSize: '10px', 
+                                            fontWeight: '800', 
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            textTransform: 'uppercase'
+                                        }}
+                                    >
+                                        {isGroupedByRH ? '✓ Regroupé par Nom' : 'Regrouper par Nom'}
+                                    </button>
                                 </div>
                             </div>
-                            <button onClick={() => handleValidateSalary(salaryProposals)} style={{ background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '900', cursor: 'pointer' }}>
-                                Tout Valider ({formatMoney(salaryProposals.reduce((acc, s) => acc + s.amount, 0))})
+                            <button onClick={() => handleValidateSalary(finalSalaryProposals)} style={{ background: '#ca8a04', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '900', cursor: 'pointer' }}>
+                                Tout Valider ({formatMoney(finalSalaryProposals.reduce((acc, s) => acc + s.amount, 0))})
                             </button>
                         </div>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                            {salaryProposals.map((s, idx) => (
-                                <div key={idx} style={{ background: 'white', border: '1px solid rgba(139, 92, 246, 0.15)', borderRadius: '14px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-main)' }}>{s.name}</div>
-                                        <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{s.project}</div>
-                                    </div>
-                                    <div style={{ fontSize: '13px', fontWeight: '900', color: '#8b5cf6' }}>{formatMoney(s.amount)}</div>
-                                    <button onClick={() => handleValidateSalary([s])} style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', border: 'none', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: '900', cursor: 'pointer' }}>Valider</button>
-                                </div>
-                            ))}
+                        <div className="clean-table-container">
+                            <table className="clean-table">
+                                <thead>
+                                    <tr>
+                                        <th>Employé</th>
+                                        <th>Client (Projet)</th>
+                                        <th>Mois (Svc)</th>
+                                        <th>Date prévue</th>
+                                        <th className="text-right">Montant</th>
+                                        <th className="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {finalSalaryProposals.map((s, idx) => {
+                                        const expectedPaymentDate = new Date(yearInt, parseInt(monthStr, 10) - 1, 5).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                        return (
+                                            <tr key={idx} style={{ background: s.isPaid ? 'rgba(16, 185, 129, 0.08)' : 'transparent', transition: 'all 0.3s' }}>
+                                                <td className="clean-primary-text">
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        {s.isPaid && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></div>}
+                                                        {s.name}
+                                                    </div>
+                                                </td>
+                                                <td className="clean-secondary-text" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.project}>{s.project}</td>
+                                                <td className="clean-secondary-text" style={{ textTransform: 'capitalize' }}>{s.serviceMonthName} {s.serviceYear}</td>
+                                                <td className="clean-secondary-text">{expectedPaymentDate}</td>
+                                                <td className="text-right" style={{ color: s.isPaid ? '#10b981' : '#222222', fontWeight: '800' }}>{formatMoney(s.amount)}</td>
+                                                <td className="text-center">
+                                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                                                        {s.isPaid ? (
+                                                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                                    <span style={{ fontSize: '9px', fontWeight: '900', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>Payé</span>
+                                                                    
+                                                                    <button 
+                                                                        onClick={() => toggleIgnore(s.transaction)} 
+                                                                        style={{ background: 'white', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                                        title="Archiver vers l'historique"
+                                                                    >
+                                                                        Archiver
+                                                                    </button>
+
+                                                                    {confirmResetId === s.transaction?.id ? (
+                                                                        <button 
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                handleResetSalary(s);
+                                                                            }}
+                                                                            onMouseLeave={() => setConfirmResetId(null)}
+                                                                            style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', animation: 'pulse 1s infinite' }}
+                                                                        >
+                                                                            <RotateCcw size={12} />
+                                                                            Confirmer ?
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button 
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                setConfirmResetId(s.transaction?.id);
+                                                                            }}
+                                                                            style={{ background: '#fee2e2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                                            title="Réinitialiser (Annuler la validation)"
+                                                                        >
+                                                                            <RotateCcw size={12} />
+                                                                            Annuler
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', gap: '4px' }}>
+                                                                <button onClick={() => handleValidateSalary([s])} style={{ background: 'white', color: '#B45309', border: '1px solid #FDE68A', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}>Valider</button>
+                                                                <button 
+                                                                    onClick={() => handleIgnoreProposal(s)} 
+                                                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6, padding: '4px' }}
+                                                                    title="Supprimer / Ignorer ce mois-ci"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'Charges TVA' && (
+                    <div style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.05) 0%, rgba(2, 132, 199, 0.1) 100%)', border: '1px solid rgba(2, 132, 199, 0.2)', borderRadius: '20px', padding: '20px', marginBottom: '24px', boxShadow: '0 10px 30px rgba(2, 132, 199, 0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#0284c7', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Landmark size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Propositions de Paiement TVA (Déclaré BIAT)</h3>
+                                    <p style={{ fontSize: '11px', color: 'rgba(2, 132, 199, 0.8)', fontWeight: '700', textTransform: 'uppercase', margin: 0 }}>TVA sur factures non archivées / non masquées</p>
+                                </div>
+                            </div>
+                            {tvaVentesProposals.length > 0 && (
+                                <button onClick={() => handleValidateTVA(tvaVentesProposals)} style={{ background: '#0284c7', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '900', cursor: 'pointer' }}>
+                                    Tout Valider ({formatMoney(tvaVentesProposals.reduce((acc, s) => acc + s.amount, 0))})
+                                </button>
+                            )}
+                        </div>
+                        {tvaVentesProposals.length === 0 ? (
+                            <div style={{ padding: '20px', textAlign: 'center', color: '#0284c7', fontWeight: '700', fontSize: '12px' }}>
+                                Aucune TVA en attente de paiement.
+                            </div>
+                        ) : (
+                            <div className="clean-table-container">
+                                <table className="clean-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Client</th>
+                                            <th>N° Facture</th>
+                                            <th>Date Émission</th>
+                                            <th className="text-right">Montant TVA</th>
+                                            <th className="text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {tvaVentesProposals.map((s, idx) => (
+                                            <tr key={idx} style={{ background: 'transparent', transition: 'all 0.3s' }}>
+                                                <td style={{ fontWeight: '800' }}>{s.client}</td>
+                                                <td><span style={{ fontSize: '11px', background: 'rgba(0,0,0,0.05)', padding: '2px 8px', borderRadius: '12px' }}>{s.id}</span></td>
+                                                <td>{new Date(s.date).toLocaleDateString('fr-FR')}</td>
+                                                <td className="text-right" style={{ color: '#0284c7', fontWeight: '800' }}>{formatMoney(s.amount)}</td>
+                                                <td className="text-center">
+                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                        <button onClick={() => handleValidateTVA([s])} style={{ background: 'white', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}>Valider (Débiter)</button>
+                                                        <button 
+                                                            onClick={() => handleIgnoreTVA(s)} 
+                                                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6, padding: '4px' }}
+                                                            title="Supprimer / Ignorer"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -873,45 +1513,71 @@ const BanquePage = () => {
                     </div>
                 )}
 
-                <div style={{ overflowX: 'auto' }}>
+                <div className={activeTab === 'Charges RH' ? 'rh-table-container' : 'clean-table-container'}>
                     {activeTab !== 'TVA' ? (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <table className={activeTab === 'Charges RH' ? 'rh-table' : 'clean-table'}>
                             <thead>
-                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date</th>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>N° Fact</th>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Désignation</th>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mois (Svc)</th>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Banque</th>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Catégorie</th>
-                                    <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant</th>
-                                    <th style={{ textAlign: 'center', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Actions</th>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>N° Fact</th>
+                                    <th>Désignation</th>
+                                    {activeTab === 'Charges RH' && <th>Projet</th>}
+                                    <th>Mois (Svc)</th>
+                                    <th>Banque</th>
+                                    <th>Catégorie</th>
+                                    <th className="text-right">Montant</th>
+                                    <th className="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredTransactions.map((t) => (
-                                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s', background: t.isAuto ? 'var(--bg-main)' : 'white' }} className="table-row-hover">
-                                        <td style={{ padding: '8px 4px', fontSize: '11px', color: 'var(--text-muted)', fontWeight: '500' }}>{new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</td>
-                                        <td style={{ padding: '8px 4px', fontSize: '10px', fontWeight: '800', color: 'var(--text-main)' }}>{t.originalId ? <span style={{ background: 'rgba(255, 193, 5, 0.1)', padding: '2px 4px', borderRadius: '4px' }}>{t.originalId === 'non déclarée' ? 'ND' : t.originalId}</span> : '-'}</td>
-                                        <td style={{ padding: '8px 4px' }}>
+                                    <tr key={t.id} style={{ background: t.isAuto ? 'rgba(250, 250, 250, 0.5)' : 'white' }}>
+                                        <td className="clean-secondary-text">{new Date(t.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</td>
+                                        <td className="clean-primary-text">{t.originalId ? <span style={{ background: 'rgba(255, 193, 5, 0.1)', padding: '2px 4px', borderRadius: '4px', fontSize: '10px' }}>{t.originalId === 'non déclarée' ? 'ND' : t.originalId}</span> : '-'}</td>
+                                        <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '11px' }}>{t.desc}</div>
-                                                {t.isDraft && <span style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', padding: '1px 4px', borderRadius: '4px', fontSize: '8px', fontWeight: '800' }}>BROUILLON</span>}
-                                                {t.isAuto && <span style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', padding: '1px 4px', borderRadius: '4px', fontSize: '8px', fontWeight: '800' }}>AUTO</span>}
+                                                {activeTab === 'Charges RH' && (
+                                                    <span className={`status-dot ${t.isAuto ? 'mustard' : 'grey'}`} style={{ marginRight: '8px' }} title={t.isAuto ? 'Validé' : 'En attente'} />
+                                                )}
+                                                <div className="clean-primary-text">{t.desc}</div>
+                                                {t.isDraft && <span className="status-pending" style={{ fontSize: '10px', marginLeft: '6px' }}>En attente</span>}
+                                                {t.isAuto && activeTab !== 'Charges RH' && <span className="status-paid" style={{ fontSize: '10px', marginLeft: '6px' }}>Validé</span>}
                                             </div>
                                         </td>
-                                        <td style={{ padding: '8px 4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-secondary)' }}>{t.serviceMonth ? new Date(t.serviceMonth + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '-'}</td>
-                                        <td style={{ padding: '8px 4px' }}><span style={{ padding: '2px 4px', borderRadius: '4px', fontSize: '9px', fontWeight: '800', background: t.bank === 'BIAT' ? 'rgba(59, 130, 246, 0.1)' : t.bank === 'QNB' ? 'rgba(220, 38, 38, 0.1)' : 'rgba(16, 185, 129, 0.1)', color: t.bank === 'BIAT' ? '#3b82f6' : t.bank === 'QNB' ? '#dc2626' : '#10b981' }}>{t.bank}</span></td>
-                                        <td style={{ padding: '8px 4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-secondary)' }}>{t.category}</td>
-                                        <td style={{ padding: '8px 4px', textAlign: 'right', fontWeight: '800', fontSize: '12px', color: t.type === 'Credit' ? '#10b981' : '#ef4444' }}>{t.type === 'Debit' ? '-' : '+'}{formatMoney(t.amount)}</td>
-                                        <td style={{ padding: '8px 4px', textAlign: 'center' }}>
-                                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                        {activeTab === 'Charges RH' && (
+                                            <td className="clean-secondary-text">
+                                                {(() => {
+                                                    const descLower = (t.desc || '').toLowerCase();
+                                                    const found = clients.find(c => 
+                                                        c.projectCosts && c.projectCosts.some(pc => 
+                                                            pc.nom && descLower.includes(pc.nom.toLowerCase())
+                                                        )
+                                                    );
+                                                    return found ? found.enseigne : 'Autres';
+                                                })()}
+                                            </td>
+                                        )}
+                                        <td className="clean-secondary-text">{t.serviceMonth ? new Date(t.serviceMonth + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '-'}</td>
+                                        <td className="clean-secondary-text">{t.bank}</td>
+                                        <td className="clean-secondary-text">{t.category}</td>
+                                        <td className="text-right" style={{ color: t.type === 'Credit' ? '#8DAB96' : '#222222', fontWeight: activeTab === 'Charges RH' ? '700' : '400' }}>{t.type === 'Debit' ? '-' : '+'}{formatMoney(t.amount)}</td>
+                                        <td className="text-center">
+                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                                                 {t.isDraft ? (
-                                                    <button onClick={() => handleValidateDraft(t)} style={{ background: '#d97706', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>Valider</button>
+                                                    <button onClick={() => handleValidateDraft(t)} style={{ background: activeTab === 'Charges RH' ? '#D4A017' : '#d97706', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>Valider</button>
                                                 ) : (
                                                     <>
-                                                        {!t.isAuto && <button onClick={() => handleEdit(t)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><MoreHorizontal size={14} /></button>}
-                                                        <button onClick={() => t.isAuto ? (window.confirm("Ignorer définitivement ?") && toggleIgnore(t)) : handleDelete(t.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6 }}><Trash2 size={14} /></button>
+                                                        {!t.isAuto && <button onClick={() => handleEdit(t)} style={{ background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer' }}><MoreHorizontal size={14} /></button>}
+                                                        <button onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            e.preventDefault();
+                                                            if (t.isAuto) {
+                                                                if (window.confirm("Voulez-vous supprimer définitivement cette transaction ?")) toggleIgnore(t);
+                                                            } else {
+                                                                handleDelete(t.id);
+                                                            }
+                                                        }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6 }}><Trash2 size={14} /></button>
+
                                                     </>
                                                 )}
                                             </div>
@@ -921,30 +1587,30 @@ const BanquePage = () => {
                             </tbody>
                         </table>
                     ) : (
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <table className="clean-table">
                             <thead>
-                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Date Facture</th>
-                                    <th style={{ textAlign: 'left', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Fournisseur / Désignation</th>
-                                    <th style={{ textAlign: 'right', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Montant TVA</th>
-                                    <th style={{ textAlign: 'center', padding: '6px 4px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Actions</th>
+                                <tr>
+                                    <th>Date Facture</th>
+                                    <th>Fournisseur / Désignation</th>
+                                    <th className="text-right">Montant TVA</th>
+                                    <th className="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {filteredTVA.length === 0 ? (
-                                    <tr><td colSpan="4" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Aucune TVA enregistrée.</td></tr>
+                                    <tr><td colSpan="4" className="text-center clean-secondary-text" style={{ padding: '40px' }}>Aucune TVA enregistrée.</td></tr>
                                 ) : (
                                     filteredTVA.map((t) => (
-                                        <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', background: 'white' }}>
-                                            <td style={{ padding: '12px 8px', fontSize: '12px' }}>{new Date(t.date).toLocaleDateString('fr-FR')}</td>
-                                            <td style={{ padding: '12px 8px' }}>
-                                                <div style={{ fontWeight: '700', fontSize: '13px' }}>{t.fournisseur}</div>
-                                                {t.desc && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.desc}</div>}
+                                        <tr key={t.id}>
+                                            <td className="clean-primary-text">{new Date(t.date).toLocaleDateString('fr-FR')}</td>
+                                            <td>
+                                                <div className="clean-primary-text">{t.fournisseur}</div>
+                                                {t.desc && <div className="clean-secondary-text" style={{ marginTop: '2px' }}>{t.desc}</div>}
                                             </td>
-                                            <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: '800', fontSize: '14px', color: '#0284c7' }}>{formatMoney(t.amount)}</td>
-                                            <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                                                <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                                                    <button onClick={() => handleEditTVA(t)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><MoreHorizontal size={14} /></button>
+                                            <td className="text-right" style={{ color: '#222222' }}>{formatMoney(t.amount)}</td>
+                                            <td className="text-center">
+                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                    <button onClick={() => handleEditTVA(t)} style={{ background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer' }}><MoreHorizontal size={14} /></button>
                                                     <button onClick={() => handleDeleteTVA(t.id)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.5 }}><Trash2 size={14} /></button>
                                                 </div>
                                             </td>
@@ -955,11 +1621,11 @@ const BanquePage = () => {
                         </table>
                     )}
                 </div>
-
+            </div>
 
             {/* HISTORY / IGNORED TRANSACTIONS SECTION */}
             <div style={{ marginTop: '40px', marginBottom: '60px' }}>
-                <button 
+                <button
                     onClick={() => setShowHistory(!showHistory)}
                     style={{
                         display: 'flex',
@@ -986,7 +1652,7 @@ const BanquePage = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <h3 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--text-main)', margin: 0 }}>Dernières Transactions Ignorées / Masquées</h3>
                             {ignoredTxs.length > 0 && (
-                                <button 
+                                <button
                                     onClick={() => {
                                         if (window.confirm("Vider définitivement l'historique des suppressions ?")) {
                                             setIgnoredTxs([]);
@@ -1016,7 +1682,7 @@ const BanquePage = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {[...ignoredTxs].sort((a,b) => new Date(b.date) - new Date(a.date)).map(t => (
+                                        {[...ignoredTxs].sort((a, b) => new Date(b.date) - new Date(a.date)).map(t => (
                                             <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', opacity: 0.7 }}>
                                                 <td style={{ padding: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>{t.date}</td>
                                                 <td style={{ padding: '8px', fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>{t.desc}</td>
@@ -1026,14 +1692,14 @@ const BanquePage = () => {
                                                 <td style={{ padding: '8px', textAlign: 'right', fontSize: '11px', fontWeight: '800', color: 'var(--text-main)' }}>{formatMoney(t.amount)}</td>
                                                 <td style={{ padding: '8px', textAlign: 'center' }}>
                                                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                                        <button 
+                                                        <button
                                                             onClick={() => toggleIgnore(t)}
                                                             style={{ background: '#10b981', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', cursor: 'pointer' }}
                                                             title="Restaurer vers le tableau principal"
                                                         >
                                                             Restaurer
                                                         </button>
-                                                        <button 
+                                                        <button
                                                             onClick={() => {
                                                                 if (window.confirm("Supprimer définitivement cet enregistrement de l'historique ?")) {
                                                                     setIgnoredTxs(ignoredTxs.filter(item => item.id !== t.id));
@@ -1056,28 +1722,51 @@ const BanquePage = () => {
                             </div>
                         )}
                     </div>
-                    </div>
                 )}
-
-                {isModalOpen && (
-                    <TransactionModal
-                        isOpen={isModalOpen}
-                        onClose={() => setIsModalOpen(false)}
-                        onSave={handleSave}
-                        transaction={editingTransaction}
-                        activeTab={activeTab}
+                </div>
+                </>
+            ) : (
+                <div style={{ marginTop: '24px' }}>
+                    <BankReconciliationTab 
+                        factures={factures} 
+                        manualTransactions={manualTransactions} 
+                        onRefresh={() => {
+                            setFactures(getFactures());
+                            const savedTx = getBankTransactions();
+                            if (savedTx) setManualTransactions(savedTx);
+                        }} 
                     />
-                )}
+                </div>
+            )}
 
-                {isTVAModalOpen && (
-                    <TVAModal
-                        isOpen={isTVAModalOpen}
-                        onClose={() => setIsTVAModalOpen(false)}
-                        onSave={handleSaveTVA}
-                        tva={editingTVA}
-                    />
-                )}
-            </div>
+            {isModalOpen && (
+                <TransactionModal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onSave={handleSave}
+                    transaction={editingTransaction}
+                    activeTab={activeTab}
+                />
+            )}
+
+            {isTVAModalOpen && (
+                <TVAModal
+                    isOpen={isTVAModalOpen}
+                    onClose={() => setIsTVAModalOpen(false)}
+                    onSave={handleSaveTVA}
+                    tva={editingTVA}
+                />
+            )}
+
+            {isImportModalOpen && (
+                <ImportChargesModal
+                    isOpen={isImportModalOpen}
+                    onClose={() => setIsImportModalOpen(false)}
+                    onSave={handleImportSave}
+                    existingTransactions={allTransactions}
+                    importCategory={activeTab === 'Charges CT' ? 'Charges CT' : 'Charges'}
+                />
+            )}
         </div>
     );
 };
@@ -1085,7 +1774,9 @@ const BanquePage = () => {
 const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) => {
     const getModalContext = () => {
         if (activeTab === 'Entrées') return { title: 'Nouvelle Entrée Cash', color: '#10b981', icon: <ArrowDownLeft size={20} />, defaultType: 'Credit' };
-        if (activeTab === 'Charges Perso') return { title: 'Dépense Personnelle', color: '#f59e0b', icon: <ArrowUpRight size={20} />, defaultType: 'Debit' };
+
+        if (activeTab === 'Charges CT') return { title: 'Charge / Versement CT', color: '#8b5cf6', icon: <CreditCard size={20} />, defaultType: 'Debit' };
+        if (activeTab === 'Charges RH') return { title: 'Dépense Salariale / RH', color: '#ca8a04', icon: <Users size={20} />, defaultType: 'Debit' };
         return { title: 'Charge Mynds Team', color: '#ef4444', icon: <ArrowUpRight size={20} />, defaultType: 'Debit' };
     };
 
@@ -1094,11 +1785,11 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
     const [formData, setFormData] = useState(transaction || {
         date: new Date().toISOString().split('T')[0],
         desc: '',
-        bank: activeTab === 'Charges Perso' ? 'QNB' : 'BIAT',
+        bank: 'BIAT',
         type: context.defaultType,
         amount: 0,
-        category: activeTab === 'Charges Perso' ? 'Perso' : (activeTab === 'Charges Mynds' ? 'Mynds Logistique' : 'Autre'),
-        chargeType: 'Exploitations',
+        category: activeTab === 'Charges CT' ? 'Charges CT' : (activeTab === 'Charges RH' ? 'Charges' : (activeTab === 'Charges Mynds' ? 'Mynds Logistique' : 'Autre')),
+        chargeType: activeTab === 'Charges RH' ? 'RH' : 'Exploitations',
         chargeNature: 'Variables',
         serviceMonth: new Date().toISOString().substring(0, 7),
         paymentDate: new Date().toISOString().split('T')[0],
@@ -1108,8 +1799,8 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
 
     // 3. Category & Bank Logic
     const myndsCategories = [
-        'Mynds Logistique', 'Mynds Loyer Bureau', 'Mynds Technique', 'Mynds Banque', 
-        'Mynds Internet', 'Mynds Logiciels', 'Mynds Fournitures', 'Mynds Charges sociales', 
+        'Mynds Logistique', 'Mynds Loyer Bureau', 'Mynds Technique', 'Mynds Banque',
+        'Mynds Internet', 'Mynds Logiciels', 'Mynds Fournitures', 'Mynds Charges sociales',
         'Mynds Formation', 'Mynds Evenement', 'Mynds Comptable', 'Mynds Paperasse', 'Mynds Prime', 'Charges'
     ];
 
@@ -1118,6 +1809,8 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
         availableCategories = ['Autre', 'Facture'];
     } else if (activeTab === 'Charges Perso') {
         availableCategories = ['Perso'];
+    } else if (activeTab === 'Charges CT') {
+        availableCategories = ['Charges CT'];
     } else {
         availableCategories = myndsCategories;
     }
@@ -1127,8 +1820,9 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
     }
 
     const getAllowedBanks = (cat) => {
-        if (cat === 'Perso') return ['QNB', 'Espèces'];
-        return ['BIAT', 'QNB', 'Espèces']; 
+        if (cat === 'Perso') return ['QNB', 'Espèces', 'Capital Personnel'];
+        if (cat === 'Charges CT') return ['BIAT', 'Carte Technologique'];
+        return ['BIAT', 'QNB', 'Espèces', 'Capital Personnel'];
     };
 
     const allowedBanks = getAllowedBanks(formData.category);
@@ -1141,7 +1835,7 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={onClose}>
             <div className="card" style={{ width: '100%', maxWidth: '440px', padding: 0, position: 'relative', background: 'white', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }} onClick={e => e.stopPropagation()}>
-                
+
                 {/* Header Contextuel */}
                 <div style={{ padding: '20px 24px', background: `${context.color}10`, borderBottom: `1px dashed ${context.color}30`, display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: context.color, color: 'white', padding: '8px', borderRadius: '12px', display: 'flex' }}>
@@ -1156,7 +1850,7 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    
+
                     {/* Section 1: Coeur de la transaction */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1182,12 +1876,12 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                     {(formData.category === 'Facture' || formData.originalId) && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--accent-gold)', textTransform: 'uppercase', marginLeft: '4px' }}>N° Facture Liée</label>
-                            <input 
-                                type="text" 
-                                placeholder="Ex: N01-2026-001" 
-                                value={formData.originalId || ''} 
-                                onChange={e => setFormData({ ...formData, originalId: e.target.value })} 
-                                style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--accent-gold)', background: 'rgba(255, 193, 5, 0.02)', fontSize: '13px', fontWeight: '800', outline: 'none' }} 
+                            <input
+                                type="text"
+                                placeholder="Ex: N01-2026-001"
+                                value={formData.originalId || ''}
+                                onChange={e => setFormData({ ...formData, originalId: e.target.value })}
+                                style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--accent-gold)', background: 'rgba(255, 193, 5, 0.02)', fontSize: '13px', fontWeight: '800', outline: 'none' }}
                             />
                         </div>
                     )}
@@ -1197,8 +1891,8 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                         <input type="text" required placeholder="Ex: Paiement Loyer Mars, Facture Internet..." value={formData.desc} onChange={e => setFormData({ ...formData, desc: e.target.value })} style={{ padding: '10px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: '600', outline: 'none' }} />
                     </div>
 
-                    {/* Section 2: Contexte Financier Pro ou Perso */}
-                    {activeTab === 'Charges Mynds' && (
+                    {/* Section 2: Contexte Financier Pro */}
+                    {(activeTab === 'Charges Mynds' || activeTab === 'Charges RH') && (
                         <div style={{ padding: '14px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1230,26 +1924,6 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                         </div>
                     )}
 
-                    {activeTab === 'Charges Perso' && (
-                        <div style={{ padding: '14px', background: `${context.color}08`, borderRadius: '16px', border: `1px solid ${context.color}30`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                <label style={{ fontSize: '9px', fontWeight: '800', color: context.color, textTransform: 'uppercase' }}>Sous-Catégorie Personnelle</label>
-                                <select value={formData.persoCategory} onChange={e => setFormData({ ...formData, persoCategory: e.target.value })} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${context.color}30`, fontSize: '13px', fontWeight: '600', outline: 'none' }}>
-                                    {PERSO_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                </select>
-                            </div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', color: 'var(--text-main)', padding: '4px' }}>
-                                <input 
-                                    type="checkbox" 
-                                    checked={formData.isRecurrent} 
-                                    onChange={e => setFormData({ ...formData, isRecurrent: e.target.checked })}
-                                    style={{ width: '18px', height: '18px', accentColor: context.color }}
-                                />
-                                Définir comme dépense récurrente
-                            </label>
-                        </div>
-                    )}
-
                     {/* Section 3: Infos Financières Finales */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '12px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1261,14 +1935,14 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Montant Net (TND)</label>
                             <div style={{ position: 'relative' }}>
-                                <input 
-                                    type="number" 
-                                    step="0.001" 
-                                    required 
+                                <input
+                                    type="number"
+                                    step="0.001"
+                                    required
                                     autoFocus
-                                    value={formData.amount || ''} 
-                                    onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} 
-                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: `2px solid ${context.color}40`, fontSize: '16px', fontWeight: '900', textAlign: 'right', outline: 'none', background: `${context.color}05` }} 
+                                    value={formData.amount || ''}
+                                    onChange={e => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', border: `2px solid ${context.color}40`, fontSize: '16px', fontWeight: '900', textAlign: 'right', outline: 'none', background: `${context.color}05` }}
                                 />
                                 <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', fontWeight: '900', color: context.color }}>TND</span>
                             </div>
@@ -1278,16 +1952,16 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                         <label style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', marginLeft: '4px' }}>Sens de l'opération</label>
                         <div style={{ display: 'flex', gap: '8px', background: 'var(--bg-main)', padding: '6px', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
-                            <button 
-                                type="button" 
-                                onClick={() => setFormData({ ...formData, type: 'Credit' })} 
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, type: 'Credit' })}
                                 style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', background: formData.type === 'Credit' ? '#10b981' : 'transparent', color: formData.type === 'Credit' ? 'white' : 'var(--text-muted)', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                                 <ArrowDownLeft size={14} /> ENTRÉE (+)
                             </button>
-                            <button 
-                                type="button" 
-                                onClick={() => setFormData({ ...formData, type: 'Debit' })} 
+                            <button
+                                type="button"
+                                onClick={() => setFormData({ ...formData, type: 'Debit' })}
                                 style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', background: formData.type === 'Debit' ? 'var(--text-main)' : 'transparent', color: formData.type === 'Debit' ? 'white' : 'var(--text-muted)', fontSize: '11px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                                 <ArrowUpRight size={14} /> SORTIE (-)

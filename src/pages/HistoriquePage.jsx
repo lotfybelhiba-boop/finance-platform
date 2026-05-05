@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import InvoicePreviewModal from '../components/InvoicePreviewModal';
-import { History, Search, Printer, Calendar, Undo2, ArrowUpRight, ArrowDownLeft, Landmark, FileText, FileSignature, AlertCircle, Users, RotateCcw, Lock, Bot } from 'lucide-react';
+import { History, Search, Printer, Calendar, Undo2, ArrowUpRight, ArrowDownLeft, Landmark, FileText, FileSignature, AlertCircle, Users, RotateCcw, Lock, Bot, Activity } from 'lucide-react';
 import { getFactures, saveFactures, getStorage, setStorage } from '../services/storageService';
+import { api } from '../services/api';
 
 const HistoriquePage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [previewFacture, setPreviewFacture] = useState(null);
-    const [activeTab, setActiveTab] = useState('Factures'); // 'Factures', 'Devis', 'Banque', 'Clients'
+    const [activeTab, setActiveTab] = useState('Factures'); // 'Factures', 'Devis', 'Banque', 'Clients', 'Audit'
     const [ignoredTxs, setIgnoredTxs] = useState(() => getStorage('mynds_ignored_transactions', []));
+    const [auditLog, setAuditLog] = useState({});
+    const [loadingAudit, setLoadingAudit] = useState(false);
 
     const [factures, setFactures] = useState(() => {
         try {
@@ -34,6 +37,24 @@ const HistoriquePage = () => {
         window.addEventListener('storage', handleStorage);
         return () => window.removeEventListener('storage', handleStorage);
     }, []);
+
+    useEffect(() => {
+        if (activeTab === 'Audit' && Object.keys(auditLog).length === 0) {
+            loadAudit();
+        }
+    }, [activeTab]);
+
+    const loadAudit = async () => {
+        setLoadingAudit(true);
+        try {
+            const data = await api.get('/audit-history');
+            setAuditLog(data || {});
+        } catch (e) {
+            console.error("Failed to load audit log", e);
+        } finally {
+            setLoadingAudit(false);
+        }
+    };
 
     const handlePrint = (facture) => {
         setPreviewFacture(facture);
@@ -185,6 +206,26 @@ const HistoriquePage = () => {
                     }}
                 >
                     <Users size={18} /> Clients
+                </button>
+                <div style={{ width: '1px', background: 'var(--border-color)', margin: '0 8px' }}></div>
+                <button
+                    onClick={() => setActiveTab('Audit')}
+                    style={{
+                        padding: '10px 24px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: activeTab === 'Audit' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                        color: activeTab === 'Audit' ? '#f59e0b' : 'var(--text-muted)',
+                        fontSize: '14px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}
+                >
+                    <Activity size={18} /> Journal Audit (PG)
                 </button>
             </div>
 
@@ -390,11 +431,48 @@ const HistoriquePage = () => {
                 </>
             )}
 
-            {activeTab === 'Clients' && (
-                <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <AlertCircle size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
-                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>Historique des Clients Archivés</h3>
-                    <p style={{ fontSize: '13px', maxWidth: '400px', margin: '0 auto' }}>La liste de tes anciens clients / contrats archivés s'affichera ici.</p>
+            {activeTab === 'Audit' && (
+                <div className="card" style={{ padding: '0', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                    <div style={{ padding: '16px', background: 'rgba(245, 158, 11, 0.05)', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontWeight: '800', color: '#b45309', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Activity size={18} /> Historique des Synchronisations PostgreSQL
+                        </div>
+                        <button onClick={loadAudit} style={{ background: 'white', border: '1px solid #d1d5db', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Rafraîchir</button>
+                    </div>
+                    {loadingAudit ? (
+                        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Chargement du journal...</div>
+                    ) : (
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                             <thead style={{ background: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
+                                <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase' }}>
+                                    <th style={{ padding: '12px 16px' }}>Clé Événement</th>
+                                    <th style={{ padding: '12px 16px' }}>Date de Sync</th>
+                                    <th style={{ padding: '12px 16px' }}>Statut</th>
+                                    <th style={{ padding: '12px 16px' }}>Détails / Raison</th>
+                                </tr>
+                             </thead>
+                             <tbody>
+                                {Object.entries(auditLog).length > 0 ? (
+                                    Object.entries(auditLog).sort((a,b) => new Date(b[1].date) - new Date(a[1].date)).map(([key, val]) => (
+                                        <tr key={key} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '13px' }}>
+                                            <td style={{ padding: '12px 16px', fontWeight: '700', color: 'var(--text-main)', fontFamily: 'monospace' }}>{key}</td>
+                                            <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(val.date).toLocaleString('fr-FR')}</td>
+                                            <td style={{ padding: '12px 16px' }}>
+                                                <span style={{ 
+                                                    background: val.status === 'Synced' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                                    color: val.status === 'Synced' ? '#10b981' : '#ef4444',
+                                                    padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '800'
+                                                }}>{val.status}</span>
+                                            </td>
+                                            <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{val.reason || 'Sychronisation réussie.'}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr><td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Aucun journal d'audit disponible.</td></tr>
+                                )}
+                             </tbody>
+                        </table>
+                    )}
                 </div>
             )}
 

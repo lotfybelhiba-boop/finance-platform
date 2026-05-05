@@ -1,0 +1,202 @@
+// server/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id              String   @id
+  enseigne        String
+  logo            String?
+  projet          String?
+  secteur         String?
+  etatClient      String   @default("Actif")
+  charge          String?
+  nomFinancier    String?
+  emailFinancier  String?
+  dateDebut       String?
+  dateFin         String?
+  mf              String?
+  mail            String?
+  telephone       String?
+  adresse         String?
+  web             String?
+  bonCommande     String?
+  regime          String   @default("Abonnement")
+  montantMensuel  Float?   @default(0)
+  jourPaiement    Int?
+  jourCycle       Int?     @default(1)
+  modeCycle       String?  @default("Mois civil")
+  delaiPaiement   String?
+  dureeMois       String?
+  montantTotal    String?
+  datePaiement    String?
+  totalCosts      Float?   @default(0)
+  netMargin       Float?   @default(0)
+  dureeService    String?
+  employeAssocie  String?
+  option15Jours   String?
+  sousTVA         Boolean  @default(true)
+  
+  servicesRecurrents ServiceRecurrent[]
+  projectCosts      ProjectCost[]
+  invoices          Invoice[]
+  bankTransactions  BankTransaction[]
+  quotes            Quote[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ServiceRecurrent {
+  id        Int     @id @default(autoincrement())
+  desc      String?
+  prix      String?
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model ProjectCost {
+  id          Int     @id @default(autoincrement())
+  nom         String?
+  specialite  String?
+  montant     String?
+  dateDebut   String?
+  dateFin     String?
+  recurrence  String?
+  clientId    String
+  client      Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id                 String   @id
+  clientId           String?
+  clientName         String?
+  clientMF           String?
+  clientAdresse      String?
+  statut             String   @default("Pending")
+  montant            String?
+  montantPaye        String?  @default("0")
+  totalHT            String?
+  totalTTC           String?
+  tva                String?
+  dateEmi            String?
+  dateEcheance       String?
+  echeance           String?
+  datePaiement       String?
+  periodeDebut       String?
+  periodeFin         String?
+  compteEncaissement String?  @default("BIAT")
+  isPaper            Boolean? @default(false)
+  isExtra            Boolean? @default(false)
+  isExonore          Boolean? @default(false)
+  targetMonth        Int?
+  targetYear         Int?
+  notes              String?
+  conditions         String?
+  coutExtra          Float?   @default(0)
+  ressourceExtra     String?
+  manualId           Boolean? @default(false)
+  sousTotalHT        Float?   @default(0)
+  timbre             Float?   @default(0)
+  paiements          Json?
+  history            Json?
+
+  client             Client?  @relation(fields: [clientId], references: [id])
+  lines              InvoiceLine[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model InvoiceLine {
+  id        Int     @id @default(autoincrement())
+  desc      String?
+  basePrice String?
+  qte       Int?
+  tva       String?
+  total     Float?
+  prix      Float?
+  montant   String?
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model BankTransaction {
+  id           Int      @id @default(autoincrement())
+  date         String?
+  desc         String?
+  bank         String?
+  type         String?
+  amount       Float?
+  category     String?
+  chargeType   String?
+  chargeNature String?
+  serviceMonth String?
+  paymentDate  String?
+  clientId     String?
+  isNonDeclare Boolean? @default(false)
+  
+  client       Client?  @relation(fields: [clientId], references: [id])
+
+  createdAt    DateTime @default(now())
+}
+
+model RHState {
+  id           String   @id
+  employeeName String?
+  month        Int?
+  year         Int?
+  status       String?  @default("Pending")
+  amount       Float?
+  bank         String?
+  datePaid     String?
+  
+  updatedAt    DateTime? @updatedAt
+}
+
+model AuditHistory {
+  key      String   @id
+  status   String?
+  date     DateTime @default(now())
+  reason   String?
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("Admin")
+  createdAt DateTime @default(now())
+}
+
+model Quote {
+  id                 String   @id
+  clientId           String?
+  clientName         String?
+  statut             String   @default("Draft")
+  montant            Float?   @default(0)
+  dateEmi            String?
+  valideJusquau      String?
+  notes              String?
+  lines              Json?
+  
+  client             Client?  @relation(fields: [clientId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Note {
+  id        String   @id
+  content   String
+  color     String?
+  x         Float?   @default(0)
+  y         Float?   @default(0)
+  createdAt DateTime @default(now())
+}

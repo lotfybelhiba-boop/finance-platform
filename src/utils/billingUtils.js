@@ -10,6 +10,29 @@
  * @returns {Object} { count, amount, missingClients }
  */
 export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = [], targetDate = new Date()) => {
+    // 0. DE-DUPLICATION of clientsList by name to prevent phantom alerts from local data inconsistencies
+    const normalize = (s) => (s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '').trim();
+    const uniqueClientsMap = {};
+    
+    clientsList.forEach(c => {
+        let nameKey = normalize(c.enseigne);
+        if (!nameKey) return;
+        if (nameKey.includes('bosch')) nameKey = 'robertboschtunisie';
+        
+        if (!uniqueClientsMap[nameKey]) {
+            uniqueClientsMap[nameKey] = c;
+        } else {
+            // Keep the one with a price if possible
+            const existing = uniqueClientsMap[nameKey];
+            const score = (c.montantMensuel || 0) + (c.montantTotal || 0) + (c.servicesRecurrents?.length || 0);
+            const existingScore = (existing.montantMensuel || 0) + (existing.montantTotal || 0) + (existing.servicesRecurrents?.length || 0);
+            if (score > existingScore) {
+                uniqueClientsMap[nameKey] = c;
+            }
+        }
+    });
+    const dedupedClients = Object.values(uniqueClientsMap);
+
     const realNow = new Date();
     const isHistorical = targetDate.getFullYear() < realNow.getFullYear() || 
                          (targetDate.getFullYear() === realNow.getFullYear() && targetDate.getMonth() < realNow.getMonth());
@@ -19,11 +42,9 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
     // Simulate end of the month if checking history, so all cycles trigger. Normal otherwise.
     const currentDay = isHistorical ? 31 : targetDate.getDate();
 
-    let missingCount = 0;
-    let missingAmount = 0;
     let missingClients = [];
 
-    clientsList.forEach(client => {
+    dedupedClients.forEach(client => {
         if (client.etatClient !== 'Actif') return;
 
         // --- 1. SUBSCRIPTION (ABONNEMENT) LOGIC ---
@@ -52,121 +73,148 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
 
             if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
 
-            let startMonth = currentMonth; // Par défaut, on ne regarde que le mois en cours
-            let endMonth = currentMonth;
+            const isElkindy = client.enseigne && client.enseigne.toLowerCase().includes('elkindy');
+            
+            let startYear = currentYear;
+            let endYear = currentYear;
 
-            if (client.dateDebut) {
+            if (isElkindy && client.dateDebut) {
                 const dD = new Date(client.dateDebut);
-                if (dD.getFullYear() === currentYear) {
-                    startMonth = dD.getMonth();
-                } else if (dD.getFullYear() < currentYear) {
-                    startMonth = 0;
-                } else if (dD.getFullYear() > currentYear) {
-                    startMonth = 12; // Désactive la boucle pour cette année future
+                if (!isNaN(dD.getTime())) {
+                    startYear = dD.getFullYear();
                 }
             }
 
-            if (client.dateFin) {
-                const dF = new Date(client.dateFin);
-                if (dF.getFullYear() === currentYear && dF.getMonth() < currentMonth) {
-                    endMonth = dF.getMonth();
-                } else if (dF.getFullYear() < currentYear) {
-                    endMonth = -1;
-                }
-            }
+            for (let y = startYear; y <= endYear; y++) {
+                let startMonth = 0;
+                let endMonth = 11;
 
-            for (let m = startMonth; m <= endMonth; m++) {
-                const targetCycleMonth = m;
-                const targetCycleYear = currentYear;
-
-                // 1. Détermination de la date de fin du cycle
-                // Pour "Mois civil" (cycleDay=1), Janvier finit le 31 Janvier.
-                // Pour "Du 15 au 14" (cycleDay=15), Janvier finit le 14 Février.
-                const cycleEndDate = (cycleDay === 1)
-                    ? new Date(targetCycleYear, targetCycleMonth + 1, 0) // Dernier jour du mois M
-                    : new Date(targetCycleYear, targetCycleMonth, cycleDay - 1);
-
-                const nowZeroTime = new Date(currentYear, currentMonth, currentDay);
-                const diffTime = cycleEndDate.getTime() - nowZeroTime.getTime();
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                // PROTECTION CRITIQUE :
-                // 1. Si on est au mois courant ou futur, on attend d'être à 5 jours de la fin
-                if (diffDays > 5) {
-                    continue;
+                if (y === currentYear) {
+                    endMonth = currentMonth;
                 }
 
-                // 2. Si c'est un mois trop vieux (plus de 60 jours de retard),
-                // on considère que c'est de l'histoire ancienne (déjà géré ailleurs)
-                if (diffDays < -45) {
-                    continue;
+                if (client.dateDebut) {
+                    const dD = new Date(client.dateDebut);
+                    if (dD.getFullYear() === y) {
+                        startMonth = dD.getMonth();
+                    } else if (dD.getFullYear() > y) {
+                        startMonth = 12; // Désactive la boucle pour cette année future
+                    }
                 }
 
-                let alertStatus = 'urgent';
-                // Urgent si on est à 2 jours ou moins de la fin du cycle
-                // Warning si on est entre 3 et 5 jours
-                if (diffDays > 2) {
-                    alertStatus = 'warning';
+                if (client.dateFin) {
+                    const dF = new Date(client.dateFin);
+                    if (dF.getFullYear() === y && dF.getMonth() < endMonth) {
+                        endMonth = dF.getMonth();
+                    } else if (dF.getFullYear() < y) {
+                        endMonth = -1; // Désactive la boucle
+                    }
                 }
 
-                const clientInvoices = factures.filter(f => 
-                    (f.clientId && f.clientId === client.id) || 
-                    (f.client && client.enseigne && (
-                        f.client.toLowerCase().includes(client.enseigne.toLowerCase()) || 
-                        client.enseigne.toLowerCase().includes(f.client.toLowerCase())
-                    ))
-                );
+                for (let m = startMonth; m <= endMonth; m++) {
+                    const targetCycleMonth = m;
+                    const targetCycleYear = y;
 
-                let hasInvoiceForTarget = false;
+                    // 1. Détermination de la date de DÉBUT du cycle (la facturation se déclenche en début de période)
+                    const cycleStartDate = (cycleDay === 1)
+                        ? new Date(targetCycleYear, targetCycleMonth, 1) // 1er jour du mois M
+                        : new Date(targetCycleYear, targetCycleMonth - 1, cycleDay);
 
-                if (clientInvoices.length > 0) {
-                    hasInvoiceForTarget = clientInvoices.some(f => {
-                        if (f.statut === 'Draft' || f.statut === 'Archived') return false;
+                    const nowZeroTime = new Date(currentYear, currentMonth, currentDay);
+                    const diffTime = cycleStartDate.getTime() - nowZeroTime.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    // PROTECTION CRITIQUE :
+                    // 1. Si on est au mois courant ou futur, on attend d'être à 5 jours de la fin
+                    if (diffDays > 5) {
+                        continue;
+                    }
+
+                    // 2. Si c'est un mois trop vieux (plus de 60 jours de retard),
+                    // on considère que c'est de l'histoire ancienne (déjà géré ailleurs)
+                    // SAUF pour Elkindy qui souhaite rattraper son historique !
+                    if (!isElkindy && diffDays < -45) {
+                        continue;
+                    }
+
+                    let alertStatus = 'urgent';
+                    // Urgent si on est à 2 jours ou moins de la fin du cycle
+                    // Warning si on est entre 3 et 5 jours
+                    if (diffDays > 2) {
+                        alertStatus = 'warning';
+                    }
+
+                    const clientInvoices = factures.filter(f => 
+                        (f.clientId && f.clientId === client.id) || 
+                        (f.client && client.enseigne && (
+                            f.client.toLowerCase().includes(client.enseigne.toLowerCase()) || 
+                            client.enseigne.toLowerCase().includes(f.client.toLowerCase())
+                        ))
+                    );
+
+                    let hasInvoiceForTarget = false;
+
+                    if (clientInvoices.length > 0) {
+                        hasInvoiceForTarget = clientInvoices.some(f => {
+                            if (f.statut === 'Archived') return false;
+                            if (f.isExtra) return false; // IMPORTANT: Les extras (isExtra) ne comptabilisent PAS mensuellement !
                         
+                        // 1. Match by explicit Period (periodeDebut)
                         const pdStr = f.periodeDebut;
                         if (pdStr) {
                             const pd = new Date(pdStr);
                             if (!isNaN(pd.getTime())) {
-                                return (pd.getFullYear() === targetCycleYear && pd.getMonth() === targetCycleMonth);
+                                const expectedMonth = (cycleDay === 1) ? targetCycleMonth : targetCycleMonth - 1;
+                                const expectedYear = (expectedMonth < 0) ? targetCycleYear - 1 : targetCycleYear;
+                                const normMonth = (expectedMonth < 0) ? 11 : expectedMonth;
+                                
+                                return pd.getFullYear() === expectedYear && pd.getMonth() === normMonth;
                             }
                         }
 
+                        // 2. Match by Emission Date (tolerant range)
                         const dEmi = f.dateEmi ? new Date(f.dateEmi) : null;
                         if (dEmi && !isNaN(dEmi.getTime())) {
                             const emiYear = dEmi.getFullYear();
                             const emiMonth = dEmi.getMonth();
-                            const emiDate = dEmi.getDate();
-
-                            // Cas 1: Même mois d'émission que la période (ex: émis le 30 Avril pour Avril)
-                            if (emiYear === targetCycleYear && emiMonth === targetCycleMonth) return true;
-
-                            // Cas 2: Proximité de la fin de cycle (ex: émis le 2 Mai pour Avril)
-                            // Fenêtre de +/- 10 jours autour de la fin du cycle
-                            const diffDaysEmi = Math.abs(dEmi.getTime() - cycleEndDate.getTime()) / (1000 * 60 * 60 * 24);
-                            if (diffDaysEmi <= 10) return true;
+                            
+                            // Match if emitted in the same month OR the following month
+                            if (emiYear === targetCycleYear) {
+                                if (emiMonth === targetCycleMonth) return true;
+                                if (emiMonth === targetCycleMonth + 1) return true;
+                            } else if (emiYear === targetCycleYear + 1 && targetCycleMonth === 11 && emiMonth === 0) {
+                                return true; // Dec -> Jan case
+                            }
                         }
+                        
+                        // 3. Fallback: match by name and description if available
+                        const targetMonthName = new Date(targetCycleYear, targetCycleMonth).toLocaleDateString('fr-FR', { month: 'long' });
+                        const containsMonth = f.lignes?.some(l => 
+                            l.desc?.toLowerCase().includes(targetMonthName.toLowerCase()) ||
+                            l.desc?.toLowerCase().includes(String(targetCycleYear))
+                        );
+                        if (containsMonth && f.clientId === client.id) return true;
+
                         return false;
                     });
                 }
 
-                if (!hasInvoiceForTarget) {
-                    const alertKey = `${client.id}-${targetCycleMonth}-${targetCycleYear}`;
-                    const isIgnored = ignoredAlerts.some(a => (typeof a === 'string' ? a === alertKey : a.key === alertKey));
-                    if (!isIgnored) {
-                        missingCount++;
-                        missingAmount += parseFloat(client.montantMensuel || 0);
-
-                        // Debug info PROFOND pour comprendre le trigger
-                        const debugInfo = `(m=${m+1}, d=${diffDays}j, ref=${currentDay}/${currentMonth+1})`;
-
-                        missingClients.push({
-                            ...client,
-                            targetMonth: targetCycleMonth,
-                            targetYear: targetCycleYear,
-                            cycleDay: cycleDay,
-                            alertStatus: alertStatus,
-                            reason: m === startMonth ? `Début contrat ${debugInfo}` : `Mensuel ${debugInfo}`
-                        });
+                    if (!hasInvoiceForTarget) {
+                        const alertKey = `${client.id}-${targetCycleMonth}-${targetCycleYear}`;
+                        const isIgnored = ignoredAlerts.some(a => (typeof a === 'string' ? a === alertKey : a.key === alertKey));
+                        if (!isIgnored) {
+                            // Debug info PROFOND pour comprendre le trigger
+                            const debugInfo = `(m=${m+1}, y=${y}, d=${diffDays}j)`;
+    
+                            missingClients.push({
+                                ...client,
+                                targetMonth: targetCycleMonth,
+                                targetYear: targetCycleYear,
+                                cycleDay: cycleDay,
+                                alertStatus: alertStatus,
+                                reason: (m === startMonth && y === startYear) ? `Début contrat ${debugInfo}` : `Mensuel ${debugInfo}`
+                            });
+                        }
                     }
                 }
             }
@@ -176,18 +224,14 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
         else if (client.regime === 'One-Shot') {
             const clientInvoices = factures.filter(f => f.clientId === client.id || f.client === client.enseigne);
             
-            // If no invoice at all and client was created more than 7 days ago
+            // If no invoice at all, check if it's time to bill
             if (clientInvoices.length === 0) {
                 const createdDate = client.dateDebut ? new Date(client.dateDebut) : new Date(2025, 0, 1);
                 const diffTime = realNow - createdDate;
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 
-                // PROTECTION : Mêmes limites que pour les abonnements
-                if (diffDays > 5 || diffDays < -45) return;
-
-                if (diffDays >= 7) {
-                    missingCount++;
-                    missingAmount += parseFloat(client.montantAnnuel || client.montantMensuel || 0);
+                // Show alert between 7 and 90 days after start date (not too early, not too old)
+                if (diffDays >= 7 && diffDays <= 90) {
                     missingClients.push({
                         ...client,
                         targetMonth: realNow.getMonth(),
@@ -200,21 +244,28 @@ export const calculatePendingInvoices = (clientsList, factures, ignoredAlerts = 
         }
     });
 
-    // FILTRE DE SÉCURITÉ FINAL : On ne propose JAMAIS rien qui finit dans plus de 5 jours
-    // et on s'assure de ne rien proposer avant la date de début réelle du client.
+    // FINAL FILTERING & Totals Calculation
+    const filteredMissing = missingClients.filter(mc => {
+        const cycleStartDate = (mc.cycleDay === 1)
+            ? new Date(mc.targetYear, mc.targetMonth, 1)
+            : new Date(mc.targetYear, mc.targetMonth - 1, mc.cycleDay || 1);
+        
+        const diffTime = cycleStartDate.getTime() - realNow.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        return diffDays <= 5;
+    });
+
+    const getMontant = (c) => {
+        if (c.regime === 'Abonnement') return parseFloat(c.montantMensuel || 0);
+        return parseFloat(c.montantTotal || c.montantAnnuel || c.montantMensuel || 0);
+    };
+
     return {
-        missingCount: missingClients.length,
-        missingAmount: missingClients.reduce((acc, c) => acc + (parseFloat(c.montantMensuel || c.montantAnnuel || 0)), 0),
-        missingClients: missingClients.filter(mc => {
-            const cycleEndDate = (mc.cycleDay === 1)
-                ? new Date(mc.targetYear, mc.targetMonth + 1, 0)
-                : new Date(mc.targetYear, mc.targetMonth, (mc.cycleDay || 1) - 1);
-            
-            const diffTime = cycleEndDate.getTime() - realNow.getTime();
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            // On ne garde que si on est à 5 jours ou moins de la fin (ou dans le passé)
-            return diffDays <= 5;
-        })
+        missingCount: filteredMissing.length,
+        missingAmount: filteredMissing.reduce((acc, c) => acc + getMontant(c), 0),
+        count: filteredMissing.length,
+        amount: filteredMissing.reduce((acc, c) => acc + getMontant(c), 0),
+        missingClients: filteredMissing
     };
 };

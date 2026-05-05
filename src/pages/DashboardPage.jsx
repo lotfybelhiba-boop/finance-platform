@@ -36,7 +36,11 @@ const DashboardPage = () => {
 
         loadDashboardData();
         window.addEventListener('storage', loadDashboardData);
-        return () => window.removeEventListener('storage', loadDashboardData);
+        window.addEventListener('mynds_data_updated', loadDashboardData);
+        return () => {
+            window.removeEventListener('storage', loadDashboardData);
+            window.removeEventListener('mynds_data_updated', loadDashboardData);
+        };
     }, []);
 
     const formatMoney = (amount) => {
@@ -80,6 +84,11 @@ const DashboardPage = () => {
     const balanceEspeces = allTransactions
         .filter(t => t.bank === 'Espèces')
         .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+
+    const balanceTech = allTransactions
+        .filter(t => t.category === 'Charges CT' && t.type === 'Debit')
+        .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0)
+        - (getStorage('mynds_sponsoring', []) || []).reduce((acc, curr) => acc + (parseFloat(curr.montantTNDBanque) || 0), 0);
 
     const totalBankBalance = balanceBIAT + balanceQNB + balanceEspeces;
 
@@ -166,6 +175,13 @@ const DashboardPage = () => {
                                     <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Cash (Espèces)</div>
                                 </div>
                                 <div style={{ fontSize: '16px', fontWeight: '800', color: '#6ee7b7' }}>{formatMoney(balanceEspeces)}</div>
+                            </div>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#a855f7' }}></div>
+                                    <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Carte Tech</div>
+                                </div>
+                                <div style={{ fontSize: '16px', fontWeight: '800', color: '#d8b4fe' }}>{formatMoney(balanceTech)}</div>
                             </div>
                         </div>
                     </div>

@@ -10,15 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "html2pdf.js": "^0.14.0",
     "lucide-react": "^0.575.0",
+    "nodemailer": "^8.0.5",
     "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-is": "^19.2.4",
     "react-router-dom": "^7.13.0",
     "recharts": "^3.7.0",
-    "written-number": "^0.11.1"
+    "written-number": "^0.11.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

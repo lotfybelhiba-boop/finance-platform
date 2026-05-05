@@ -9,11 +9,14 @@ const FinancePage = () => {
     const [paymentHistory, setPaymentHistory] = useState({});
     const [transactions, setTransactions] = useState([]);
     const [showActiveClients, setShowActiveClients] = useState(false);
+    const [activeTab, setActiveTab] = useState('Bilan'); // 'Bilan', 'RH', or 'Staff'
+    const [sponsoringList, setSponsoringList] = useState([]);
 
     useEffect(() => {
         setTransactions(getBankTransactions());
         setClients(getClients());
         setFactures(getFactures());
+        setSponsoringList(getStorage('mynds_sponsoring', []));
 
         const storedPayments = getStorage('mynds_payment_tracking_v2');
         if (storedPayments) {
@@ -106,6 +109,18 @@ const FinancePage = () => {
     const totalPerso = transactionsForYear
         .filter(t => t.type === 'Debit' && t.category === 'Perso')
         .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+
+    // === CHARGES CT & SPONSORING ===
+    const totalVirementsCT = transactionsForYear
+        .filter(t => t.type === 'Debit' && t.category === 'Charges CT')
+        .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+
+    const totalSponsoringYear = sponsoringList
+        .filter(s => {
+            const date = new Date(s.dateDebut);
+            return date.getFullYear() === selectedYear;
+        })
+        .reduce((acc, curr) => acc + (parseFloat(curr.montantTNDBanque) || 0), 0);
 
     const monthlyPerso = Array(12).fill(0);
     const persoDetails = Array(12).fill().map(() => ({}));
@@ -278,13 +293,37 @@ const FinancePage = () => {
                 </div>
             </div>
 
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', background: 'rgba(0,0,0,0.03)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
+                <button 
+                    onClick={() => setActiveTab('Bilan')}
+                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: activeTab === 'Bilan' ? 'white' : 'transparent', color: activeTab === 'Bilan' ? 'var(--primary-color)' : 'var(--text-muted)', fontSize: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: activeTab === 'Bilan' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                >
+                    Audit & Bilan Global
+                </button>
+                <button 
+                    onClick={() => setActiveTab('RH')}
+                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: activeTab === 'RH' ? 'white' : 'transparent', color: activeTab === 'RH' ? '#3b82f6' : 'var(--text-muted)', fontSize: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: activeTab === 'RH' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                >
+                    Charges RH (Vue Projets)
+                </button>
+                <button 
+                    onClick={() => setActiveTab('Staff')}
+                    style={{ padding: '8px 16px', borderRadius: '10px', border: 'none', background: activeTab === 'Staff' ? 'white' : 'transparent', color: activeTab === 'Staff' ? '#8b5cf6' : 'var(--text-muted)', fontSize: '12px', fontWeight: '800', cursor: 'pointer', boxShadow: activeTab === 'Staff' ? '0 2px 8px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                >
+                    Vue par Collaborateur
+                </button>
+            </div>
+
+            {activeTab === 'Bilan' ? (
+                <>
+
             {/* Charges KPIs Section */}
             <div style={{ marginBottom: '24px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                     <div style={{ background: 'white', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(245, 158, 11, 0.1)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b' }}></div>
-                            <div style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Charges d'Exploitations</div>
+                            <div style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Charges Exploitations</div>
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: '900', color: 'var(--text-main)' }}>{formatMoney(totalExploitations)}</div>
                     </div>
@@ -300,6 +339,15 @@ const FinancePage = () => {
                     <div style={{ background: 'white', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(139, 92, 246, 0.1)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#8b5cf6' }}></div>
+                            <div style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Carte Tech & Spons.</div>
+                        </div>
+                        <div style={{ fontSize: '16px', fontWeight: '900', color: 'var(--text-main)' }}>{formatMoney(totalVirementsCT)}</div>
+                        <div style={{ fontSize: '8px', color: 'var(--text-muted)', fontWeight: '700' }}>SPONS: {formatMoney(totalSponsoringYear)}</div>
+                    </div>
+
+                    <div style={{ background: 'white', padding: '10px 14px', borderRadius: '12px', border: '1px solid rgba(100, 116, 139, 0.1)', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#64748b' }}></div>
                             <div style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Dépenses Personnelles</div>
                         </div>
                         <div style={{ fontSize: '16px', fontWeight: '900', color: 'var(--text-main)' }}>{formatMoney(totalPerso)}</div>
@@ -341,40 +389,62 @@ const FinancePage = () => {
                     </div>
 
                     {/* Active Clients Table */}
-                    <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '24px', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                        <div onClick={() => setShowActiveClients(!showActiveClients)} style={{ padding: '12px 16px', borderBottom: showActiveClients ? '1px solid var(--border-color)' : 'none', background: 'var(--bg-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+                    <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '24px', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--card-bg)' }}>
+                        <div onClick={() => setShowActiveClients(!showActiveClients)} style={{ padding: '10px 16px', borderBottom: showActiveClients ? '1px solid var(--border-color)' : 'none', background: 'linear-gradient(to right, var(--bg-main), transparent)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ background: 'var(--accent-gold)', width: '4px', height: '14px', borderRadius: '4px' }}></div>
-                                <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-main)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Détail des Clients Actifs</h3>
+                                <div style={{ background: 'var(--accent-gold)', width: '3px', height: '14px', borderRadius: '4px' }}></div>
+                                <h3 style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-main)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Détail des Clients Actifs</h3>
+                                <span style={{ fontSize: '10px', background: 'var(--accent-gold)', color: 'var(--text-main)', padding: '2px 6px', borderRadius: '10px', fontWeight: '900' }}>{filteredClientsByYear.length}</span>
                             </div>
                             <div style={{ transform: showActiveClients ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', color: 'var(--text-muted)' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                             </div>
                         </div>
+                        
                         {showActiveClients && (
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ background: 'white', borderBottom: '1px solid var(--border-color)' }}>
-                                            <th style={{ padding: '8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Client</th>
-                                            <th style={{ padding: '8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Période</th>
-                                            <th style={{ padding: '8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Durée</th>
-                                            <th style={{ padding: '8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>C.A. (HT)</th>
-                                            <th style={{ padding: '8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Charges</th>
-                                            <th style={{ padding: '8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Bénéfice Net</th>
+                                    <thead style={{ background: 'rgba(0,0,0,0.01)' }}>
+                                        <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                            <th style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Client & Régime</th>
+                                            <th style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Période / Durée</th>
+                                            <th style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px', textAlign: 'right' }}>C.A. HT</th>
+                                            <th style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px', textAlign: 'right' }}>Charges</th>
+                                            <th style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.3px', textAlign: 'right' }}>Bénéfice</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredClientsByYear.map((client) => (
-                                            <tr key={client.id} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '12px' }}>
-                                                <td style={{ padding: '8px', fontWeight: '800', color: 'var(--text-main)' }}>{client.enseigne}</td>
-                                                <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{client.dateDebut || '-'}</td>
-                                                <td style={{ padding: '8px' }}>{client.dureeService || '-'}</td>
-                                                <td style={{ padding: '8px', fontWeight: '800' }}>{formatNumber(getMonthlyEquivalent(client, 'revenue'))}</td>
-                                                <td style={{ padding: '8px', color: '#ef4444' }}>- {formatNumber(getMonthlyEquivalent(client, 'costs'))}</td>
-                                                <td style={{ padding: '8px', fontWeight: '800', color: '#10b981' }}>{formatNumber(getMonthlyEquivalent(client, 'margin'))}</td>
-                                            </tr>
-                                        ))}
+                                        {filteredClientsByYear.map((client) => {
+                                            const rev = getMonthlyEquivalent(client, 'revenue');
+                                            const cst = getMonthlyEquivalent(client, 'costs');
+                                            const marg = getMonthlyEquivalent(client, 'margin');
+                                            const isAbo = client.regime === 'Abonnement';
+
+                                            return (
+                                                <tr key={client.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)', fontSize: '10.5px', transition: 'background 0.2s' }}>
+                                                    <td style={{ padding: '2px 8px' }}>
+                                                        <span style={{ fontWeight: '800', color: 'var(--text-main)' }}>{client.enseigne}</span>
+                                                        <span style={{ fontSize: '8px', color: isAbo ? '#3b82f6' : '#8b5cf6', marginLeft: '6px', textTransform: 'uppercase', fontWeight: '700' }}>
+                                                            {isAbo ? 'ABO' : 'O.S'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '2px 8px', color: 'var(--text-muted)' }}>
+                                                        {client.dateDebut || '-'} <span style={{ fontSize: '9px', opacity: 0.7 }}>({client.dureeService || (client.dureeMois ? `${client.dureeMois}m` : '-')})</span>
+                                                    </td>
+                                                    <td style={{ padding: '2px 8px', textAlign: 'right', fontWeight: '700', color: 'var(--text-main)' }}>
+                                                        {formatNumber(rev)}
+                                                    </td>
+                                                    <td style={{ padding: '2px 8px', textAlign: 'right', color: '#ef4444', fontWeight: '600' }}>
+                                                        -{formatNumber(cst)}
+                                                    </td>
+                                                    <td style={{ padding: '2px 8px', textAlign: 'right' }}>
+                                                        <span style={{ fontWeight: '900', color: marg >= 0 ? '#059669' : '#ef4444' }}>
+                                                            {formatNumber(marg)}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -447,41 +517,7 @@ const FinancePage = () => {
                         </div>
                     </div>
 
-                    {/* Personal Management Section */}
-                    <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', marginBottom: '24px', overflow: 'hidden' }}>
-                        <div style={{ padding: '12px 16px', borderBottom: '1px dashed var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(139, 92, 246, 0.05)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <CreditCard size={18} color="#8b5cf6" />
-                                <h3 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-main)', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Gestion Vie Personnelle (Privé)</h3>
-                            </div>
-                            <div style={{ fontSize: '13px', fontWeight: '900', color: '#8b5cf6', background: 'rgba(139, 92, 246, 0.1)', padding: '4px 12px', borderRadius: '8px' }}>
-                                Total Dépenses: {formatMoney(totalPerso)}
-                            </div>
-                        </div>
-                        <div style={{ overflowX: 'auto', padding: '12px' }}>
-                            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '4px 2px', textAlign: 'center' }}>
-                                <thead>
-                                    <tr>
-                                        <th style={{ padding: '4px 8px', fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'left', minWidth: '80px' }}>Type</th>
-                                        {months.map(m => <th key={m} style={{ padding: '4px 8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', width: 'calc((100% - 80px) / 12)' }}>{m}</th>)}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td style={{ padding: '4px 8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-main)', textAlign: 'left' }}>Dépenses (Lotfi)</td>
-                                        {monthlyPerso.map((amount, idx) => (
-                                            <td key={`perso-m-${idx}`} style={{ padding: '6px', background: amount > 0 ? 'rgba(139, 92, 246, 0.05)' : 'rgba(0,0,0,0.02)', borderRadius: '6px', cursor: amount > 0 ? 'help' : 'default' }} 
-                                                title={amount > 0 ? `Détails ${months[idx]}:\n` + Object.entries(persoDetails[idx]).map(([n,v])=>`- ${n} : ${formatMoney(v)}`).join('\n') : ''}>
-                                                <div style={{ fontSize: '11px', fontWeight: '800', color: amount > 0 ? '#8b5cf6' : 'var(--text-muted)' }}>
-                                                    {amount > 0 ? formatNumber(amount) : '-'}
-                                                </div>
-                                            </td>
-                                        ))}
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+
 
                     {/* Trésorerie & Déclarations TVA (Encaissements) */}
                     <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', marginBottom: '24px', overflow: 'hidden' }}>
@@ -719,40 +755,8 @@ const FinancePage = () => {
                     </div>
 
                     {/* Sidebar or Footer Tracking Paiements (Mini tables) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                        {/* Tracking Paiements */}
-                        <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                            <div style={{ padding: '8px 12px', background: 'var(--bg-main)', borderBottom: '1px dashed var(--border-color)', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' }}>Tracking Paiements (Vérification)</div>
-                            <div style={{ overflowX: 'auto', padding: '4px' }}>
-                                <table style={{ width: '100%', textAlign: 'center' }}>
-                                    <thead>
-                                        <tr>
-                                            <th style={{ textAlign: 'left', fontSize: '9px', padding: '4px' }}>Client</th>
-                                            {months.map(m => <th key={m} style={{ fontSize: '8px' }}>{m}</th>)}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {activeClients.map(client => (
-                                            <tr key={client.id}>
-                                                <td style={{ textAlign: 'left', fontSize: '9px', fontWeight: '800', padding: '4px' }}>{client.enseigne}</td>
-                                                {months.map((_, idx) => {
-                                                    const status = getCellStatus(client, idx);
-                                                    if (status === 'na') return <td key={idx}><div style={{ width: '12px', height: '12px', background: 'rgba(0,0,0,0.02)', borderRadius: '3px', margin: '0 auto' }}></div></td>;
-                                                    const isChecked = paymentHistory[selectedYear]?.[client.id]?.[idx];
-                                                    return (
-                                                        <td key={idx}>
-                                                            <div onClick={() => togglePayment(client.id, idx)} style={{ width: '14px', height: '14px', border: isChecked ? 'none' : '1px solid var(--border-color)', background: isChecked ? '#10b981' : 'transparent', borderRadius: '3px', cursor: 'pointer', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                {isChecked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '24px' }}>
+
 
                         {/* Flux Bancaire Mensuel (HT) */}
                         <div style={{ background: 'var(--card-bg)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
@@ -783,6 +787,270 @@ const FinancePage = () => {
                     </div>
 
                 </>
+            )}
+            </>
+            ) : activeTab === 'RH' ? (
+                <div style={{ background: 'var(--card-bg)', borderRadius: '24px', border: '1px solid var(--border-color)', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <div>
+                            <h3 style={{ fontSize: '14px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Suivi Annuel des Charges RH</h3>
+                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0', fontWeight: '600' }}>Coûts directs (Mensuels & Ponctuels) affectés aux projets</p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#3b82f6' }}></div> Mensuel
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#f59e0b' }}></div> Ponctuel
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <th style={{ padding: '12px 16px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'left', minWidth: '180px' }}>Projet / Client</th>
+                                    {months.map(m => (
+                                        <th key={m} style={{ padding: '12px 8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>{m}</th>
+                                    ))}
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: '900', color: 'var(--text-main)', textTransform: 'uppercase', textAlign: 'right', background: 'rgba(0,0,0,0.02)' }}>Total Annuel</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {activeClients.map(client => {
+                                    let rowTotal = 0;
+                                    return (
+                                        <tr key={client.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)', transition: 'background 0.2s' }}>
+                                            <td style={{ padding: '12px 16px' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-main)' }}>{client.enseigne}</div>
+                                                <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: '600' }}>{client.projet || 'Projet Standard'}</div>
+                                            </td>
+                                            {months.map((_, idx) => {
+                                                const isInContract = isMonthInContract(client, idx, selectedYear);
+                                                if (!isInContract) return <td key={idx} style={{ padding: '4px', textAlign: 'center' }}><div style={{ width: '14px', height: '14px', margin: '0 auto', background: 'rgba(0,0,0,0.02)', borderRadius: '4px' }}></div></td>;
+
+                                                let monthTotal = 0;
+                                                let monthDetails = [];
+
+                                                client.projectCosts?.forEach(cost => {
+                                                    const amount = parseFloat(cost.montant) || 0;
+                                                    const isOneShot = cost.recurrence === 'Ponctuel';
+                                                    let isRelevant = false;
+
+                                                    if (isOneShot) {
+                                                        const date = cost.dateDebut ? new Date(cost.dateDebut) : (client.dateDebut ? new Date(client.dateDebut) : null);
+                                                        if (date && date.getFullYear() === selectedYear && date.getMonth() === idx) {
+                                                            isRelevant = true;
+                                                        }
+                                                    } else {
+                                                        const costStart = cost.dateDebut ? new Date(cost.dateDebut) : null;
+                                                        const costEnd = cost.dateFin ? new Date(cost.dateFin) : null;
+                                                        const target = new Date(selectedYear, idx, 1);
+                                                        const isStartOk = !costStart || target >= new Date(costStart.getFullYear(), costStart.getMonth(), 1);
+                                                        const isEndOk = !costEnd || target <= new Date(costEnd.getFullYear(), costEnd.getMonth(), 1);
+                                                        if (isStartOk && isEndOk) isRelevant = true;
+                                                    }
+
+                                                    if (isRelevant) {
+                                                        monthTotal += amount;
+                                                        monthDetails.push({ name: cost.nom, amount, isOneShot });
+                                                    }
+                                                });
+
+                                                rowTotal += monthTotal;
+
+                                                return (
+                                                    <td key={idx} style={{ padding: '4px', textAlign: 'center', borderRight: '1px solid rgba(0,0,0,0.02)' }}>
+                                                        {monthTotal > 0 ? (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                                                                <div style={{ fontSize: '10px', fontWeight: '900', color: 'var(--text-main)' }}>{formatNumber(monthTotal)}</div>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                                                    {monthDetails.map((det, dIdx) => (
+                                                                        <div key={dIdx} style={{ 
+                                                                            fontSize: '7.5px', 
+                                                                            lineHeight: '1',
+                                                                            color: det.isOneShot ? '#b45309' : '#3b82f6', 
+                                                                            fontWeight: '700',
+                                                                            whiteSpace: 'nowrap',
+                                                                            background: det.isOneShot ? 'rgba(245, 158, 11, 0.05)' : 'rgba(59, 130, 246, 0.03)',
+                                                                            padding: '1px 3px',
+                                                                            borderRadius: '2px'
+                                                                        }}>
+                                                                            {det.name}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        ) : <div style={{ fontSize: '10px', color: 'rgba(0,0,0,0.05)' }}>-</div>}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td style={{ padding: '12px 16px', textAlign: 'right', background: 'rgba(0,0,0,0.02)' }}>
+                                                <div style={{ fontSize: '12px', fontWeight: '900', color: 'var(--text-main)' }}>{formatMoney(rowTotal)}</div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                <tr style={{ background: 'var(--bg-main)', borderTop: '2px solid var(--border-color)' }}>
+                                    <td style={{ padding: '16px', fontSize: '11px', fontWeight: '900' }}>TOTAL MENSUEL</td>
+                                    {months.map((_, idx) => {
+                                        let colTotal = 0;
+                                        activeClients.forEach(client => {
+                                            client.projectCosts?.forEach(cost => {
+                                                const amount = parseFloat(cost.montant) || 0;
+                                                const isOneShot = cost.recurrence === 'Ponctuel';
+                                                if (isOneShot) {
+                                                    const date = cost.dateDebut ? new Date(cost.dateDebut) : null;
+                                                    if (date && date.getFullYear() === selectedYear && date.getMonth() === idx) colTotal += amount;
+                                                } else if (isMonthInContract(client, idx, selectedYear)) {
+                                                    const costStart = cost.dateDebut ? new Date(cost.dateDebut) : null;
+                                                    const costEnd = cost.dateFin ? new Date(cost.dateFin) : null;
+                                                    const target = new Date(selectedYear, idx, 1);
+                                                    if ((!costStart || target >= new Date(costStart.getFullYear(), costStart.getMonth(), 1)) && (!costEnd || target <= new Date(costEnd.getFullYear(), costEnd.getMonth(), 1))) {
+                                                        colTotal += amount;
+                                                    }
+                                                }
+                                            });
+                                        });
+                                        return (
+                                            <td key={idx} style={{ textAlign: 'center', fontSize: '11px', fontWeight: '900', color: 'var(--text-main)' }}>
+                                                {colTotal > 0 ? formatNumber(colTotal) : '-'}
+                                            </td>
+                                        );
+                                    })}
+                                    <td style={{ padding: '16px', textAlign: 'right', fontSize: '13px', fontWeight: '900', color: 'var(--primary-color)', background: 'rgba(0,0,0,0.04)' }}>
+                                        {formatMoney(activeClients.reduce((acc, client) => acc + (client.projectCosts?.reduce((s, c) => {
+                                            const amt = parseFloat(c.montant) || 0;
+                                            if (c.recurrence === 'Ponctuel') {
+                                                const d = c.dateDebut ? new Date(c.dateDebut) : null;
+                                                return (d && d.getFullYear() === selectedYear) ? s + amt : s;
+                                            }
+                                            // Mensuel logic (approximation for total year active months)
+                                            let activeMonths = 0;
+                                            for(let i=0; i<12; i++) {
+                                                if (isMonthInContract(client, i, selectedYear)) {
+                                                    const costStart = c.dateDebut ? new Date(c.dateDebut) : null;
+                                                    const costEnd = c.dateFin ? new Date(c.dateFin) : null;
+                                                    const target = new Date(selectedYear, i, 1);
+                                                    if ((!costStart || target >= new Date(costStart.getFullYear(), costStart.getMonth(), 1)) && (!costEnd || target <= new Date(costEnd.getFullYear(), costEnd.getMonth(), 1))) activeMonths++;
+                                                }
+                                            }
+                                            return s + (amt * activeMonths);
+                                        }, 0) || 0), 0))}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : (
+                <div style={{ background: 'var(--card-bg)', borderRadius: '24px', border: '1px solid var(--border-color)', padding: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <div>
+                            <h3 style={{ fontSize: '14px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Suivi par Collaborateur (RH)</h3>
+                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '2px 0 0 0', fontWeight: '600' }}>Répartition des charges par ressource à travers les projets</p>
+                        </div>
+                    </div>
+
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                    <th style={{ padding: '12px 16px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'left', minWidth: '160px' }}>Collaborateur</th>
+                                    {months.map(m => (
+                                        <th key={m} style={{ padding: '12px 8px', fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'center' }}>{m}</th>
+                                    ))}
+                                    <th style={{ padding: '12px 16px', fontSize: '11px', fontWeight: '900', color: 'var(--text-main)', textTransform: 'uppercase', textAlign: 'right', background: 'rgba(0,0,0,0.02)' }}>Total RH Annuel</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(() => {
+                                    // Extract unique RH names
+                                    const allStaffNames = new Set();
+                                    activeClients.forEach(c => c.projectCosts?.forEach(pc => { if(pc.nom) allStaffNames.add(pc.nom); }));
+                                    const sortedStaff = Array.from(allStaffNames).sort();
+
+                                    return sortedStaff.map(staffName => {
+                                        let staffYearTotal = 0;
+                                        return (
+                                            <tr key={staffName} style={{ borderBottom: '1px solid rgba(0,0,0,0.03)', transition: 'background 0.2s' }}>
+                                                <td style={{ padding: '12px 16px' }}>
+                                                    <div style={{ fontSize: '12px', fontWeight: '800', color: 'var(--text-main)' }}>{staffName}</div>
+                                                </td>
+                                                {months.map((_, idx) => {
+                                                    let staffMonthTotal = 0;
+                                                    let projectsForStaff = [];
+
+                                                    activeClients.forEach(client => {
+                                                        const isInContract = isMonthInContract(client, idx, selectedYear);
+                                                        if (!isInContract) return;
+
+                                                        client.projectCosts?.forEach(cost => {
+                                                            if (cost.nom === staffName) {
+                                                                const amount = parseFloat(cost.montant) || 0;
+                                                                const isOneShot = cost.recurrence === 'Ponctuel';
+                                                                let isRelevant = false;
+
+                                                                if (isOneShot) {
+                                                                    const date = cost.dateDebut ? new Date(cost.dateDebut) : (client.dateDebut ? new Date(client.dateDebut) : null);
+                                                                    if (date && date.getFullYear() === selectedYear && date.getMonth() === idx) isRelevant = true;
+                                                                } else {
+                                                                    const costStart = cost.dateDebut ? new Date(cost.dateDebut) : null;
+                                                                    const costEnd = cost.dateFin ? new Date(cost.dateFin) : null;
+                                                                    const target = new Date(selectedYear, idx, 1);
+                                                                    const isStartOk = !costStart || target >= new Date(costStart.getFullYear(), costStart.getMonth(), 1);
+                                                                    const isEndOk = !costEnd || target <= new Date(costEnd.getFullYear(), costEnd.getMonth(), 1);
+                                                                    if (isStartOk && isEndOk) isRelevant = true;
+                                                                }
+
+                                                                if (isRelevant) {
+                                                                    staffMonthTotal += amount;
+                                                                    projectsForStaff.push({ client: client.enseigne, isOneShot });
+                                                                }
+                                                            }
+                                                        });
+                                                    });
+
+                                                    staffYearTotal += staffMonthTotal;
+
+                                                    return (
+                                                        <td key={idx} style={{ padding: '4px', textAlign: 'center', borderRight: '1px solid rgba(0,0,0,0.02)' }}>
+                                                            {staffMonthTotal > 0 ? (
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                                                                    <div style={{ fontSize: '10px', fontWeight: '900', color: '#8b5cf6' }}>{formatNumber(staffMonthTotal)}</div>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                                                        {projectsForStaff.map((p, pIdx) => (
+                                                                            <div key={pIdx} style={{ 
+                                                                                fontSize: '7px', 
+                                                                                lineHeight: '1',
+                                                                                color: 'var(--text-muted)', 
+                                                                                fontWeight: '700',
+                                                                                whiteSpace: 'nowrap',
+                                                                                background: p.isOneShot ? 'rgba(245, 158, 11, 0.05)' : 'rgba(0,0,0,0.03)',
+                                                                                padding: '1px 2px',
+                                                                                borderRadius: '2px'
+                                                                            }}>
+                                                                                {p.client}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ) : <div style={{ fontSize: '10px', color: 'rgba(0,0,0,0.05)' }}>-</div>}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td style={{ padding: '12px 16px', textAlign: 'right', background: 'rgba(139, 92, 246, 0.03)' }}>
+                                                    <div style={{ fontSize: '12px', fontWeight: '900', color: '#8b5cf6' }}>{formatMoney(staffYearTotal)}</div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    });
+                                })()}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
         </div>
     );

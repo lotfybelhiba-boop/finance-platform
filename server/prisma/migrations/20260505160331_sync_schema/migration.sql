@@ -1,0 +1,74 @@
+-- AlterTable
+ALTER TABLE "AuditHistory" ALTER COLUMN "status" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "BankTransaction" ADD COLUMN     "isNonDeclare" BOOLEAN DEFAULT false,
+ALTER COLUMN "date" DROP NOT NULL,
+ALTER COLUMN "desc" DROP NOT NULL,
+ALTER COLUMN "bank" DROP NOT NULL,
+ALTER COLUMN "type" DROP NOT NULL,
+ALTER COLUMN "amount" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "Client" ADD COLUMN     "bonCommande" TEXT,
+ADD COLUMN     "datePaiement" TEXT,
+ADD COLUMN     "delaiPaiement" TEXT,
+ADD COLUMN     "dureeMois" TEXT,
+ADD COLUMN     "dureeService" TEXT,
+ADD COLUMN     "emailFinancier" TEXT,
+ADD COLUMN     "employeAssocie" TEXT,
+ADD COLUMN     "logo" TEXT,
+ADD COLUMN     "montantTotal" TEXT,
+ADD COLUMN     "netMargin" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN     "nomFinancier" TEXT,
+ADD COLUMN     "option15Jours" TEXT,
+ADD COLUMN     "totalCosts" DOUBLE PRECISION DEFAULT 0,
+ALTER COLUMN "montantMensuel" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "Invoice" ADD COLUMN     "dateEcheance" TEXT,
+ADD COLUMN     "history" JSONB,
+ADD COLUMN     "totalHT" TEXT,
+ADD COLUMN     "totalTTC" TEXT,
+ADD COLUMN     "tva" TEXT,
+ALTER COLUMN "clientName" DROP NOT NULL,
+ALTER COLUMN "montant" DROP NOT NULL,
+ALTER COLUMN "montant" SET DATA TYPE TEXT,
+ALTER COLUMN "montantPaye" DROP NOT NULL,
+ALTER COLUMN "montantPaye" SET DEFAULT '0',
+ALTER COLUMN "montantPaye" SET DATA TYPE TEXT,
+ALTER COLUMN "isPaper" DROP NOT NULL,
+ALTER COLUMN "isExtra" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "InvoiceLine" ADD COLUMN     "basePrice" TEXT,
+ADD COLUMN     "qte" INTEGER,
+ADD COLUMN     "total" DOUBLE PRECISION,
+ADD COLUMN     "tva" TEXT,
+ALTER COLUMN "desc" DROP NOT NULL,
+ALTER COLUMN "montant" DROP NOT NULL,
+ALTER COLUMN "montant" SET DATA TYPE TEXT;
+
+-- AlterTable
+ALTER TABLE "ProjectCost" ADD COLUMN     "dateDebut" TEXT,
+ADD COLUMN     "dateFin" TEXT,
+ADD COLUMN     "recurrence" TEXT,
+ADD COLUMN     "specialite" TEXT,
+ALTER COLUMN "nom" DROP NOT NULL,
+ALTER COLUMN "montant" DROP NOT NULL,
+ALTER COLUMN "montant" DROP DEFAULT,
+ALTER COLUMN "montant" SET DATA TYPE TEXT;
+
+-- AlterTable
+ALTER TABLE "RHState" ALTER COLUMN "employeeName" DROP NOT NULL,
+ALTER COLUMN "month" DROP NOT NULL,
+ALTER COLUMN "year" DROP NOT NULL,
+ALTER COLUMN "status" DROP NOT NULL,
+ALTER COLUMN "amount" DROP NOT NULL,
+ALTER COLUMN "updatedAt" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "ServiceRecurrent" ALTER COLUMN "desc" DROP NOT NULL,
+ALTER COLUMN "prix" DROP NOT NULL,
+ALTER COLUMN "prix" DROP DEFAULT,
+ALTER COLUMN "prix" SET DATA TYPE TEXT;
