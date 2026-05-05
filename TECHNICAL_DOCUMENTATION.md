@@ -26,28 +26,33 @@ La plateforme suit une architecture **Client-Serveur** moderne :
 
 ---
 
-## 3. Conception de la Base de Données (PostgreSQL)
+## 3. Conception Profonde de la Base de Données (PostgreSQL)
 
-### 📊 Modèle de Données (Schéma Prisma)
-La structure est centrée sur la relation entre les Clients et leurs Inscriptions financières.
+L'architecture de données a été conçue pour garantir l'intégrité financière et la traçabilité complète.
 
-```mermaid
-erDiagram
-    USER ||--o{ AUDIT : "génère"
-    CLIENT ||--o{ INVOICE : "possède"
-    CLIENT ||--o{ QUOTE : "reçoit"
-    CLIENT ||--o{ BANK_TRANSACTION : "lié à"
-    INVOICE ||--|{ INVOICE_LINE : "contient"
-    INVOICE ||--o{ PAYMENT : "reçoit"
-```
+### 🏛️ Schéma Relationnel Détaillé
 
-#### Entités Principales :
-1.  **User :** Gestion des accès (Admin).
-2.  **Client :** Stocke les infos fiscales (MF, Adresse), le régime (Abonnement/One-shot) et les paramètres de facturation.
-3.  **Invoice :** Cœur du système. Gère les montants (HT/TVA/TTC), les périodes de service et les statuts de paiement.
-4.  **BankTransaction :** Suivi des flux réels sur les comptes BIAT, QNB et Espèces.
-5.  **RHState :** Suivi des paiements de salaires et charges sociales.
-6.  **AuditHistory :** Journal de bord des actions effectuées pour garantir l'intégrité des données.
+#### A. Table `Client` (Référentiel Central)
+*   **ID (UUID/String) :** Clé primaire unique.
+*   **Champs Fiscaux :** `mf` (Matricule Fiscal), `adresse`.
+*   **Logique de Cycle :** `jourCycle`, `modeCycle` permettent au moteur de facturation de calculer automatiquement les échéances.
+*   **Status :** `etatClient` (Enum : Actif, Archivé).
+*   **Contraintes :** Index unique sur `enseigne` pour éviter les doublons de noms.
+
+#### B. Table `Invoice` (Cœur Transactionnel)
+*   **Relations :** Clé étrangère `clientId` pointant vers `Client` avec suppression en cascade (optionnelle).
+*   **Typage Monétaire :** Utilisation de `Float` et `Int` pour les calculs, mais stockage des montants finaux en `String` pour la compatibilité avec les exports PDF.
+*   **JSONB (Lines) :** Les lignes de facture sont stockées au format JSON structuré, permettant une flexibilité totale sur les libellés et les quantités sans alourdir le schéma.
+*   **Historique :** Champ `history` (JSONB) stockant chaque changement d'état (Émise -> Envoyée -> Payée).
+
+#### C. Table `BankTransaction` (Flux de Trésorerie)
+*   **Banques (Enum) :** BIAT (Officiel), QNB (Perso), Espèces, Carte Technologique.
+*   **Catégorisation :** `category` (Facture, Charges, RH, Perso).
+*   **Lien Facture :** `originalId` permet de lier une transaction automatique à sa facture source (Rapprochement).
+
+#### D. Table `AuditHistory` (Traçabilité)
+*   Cette table ne permet pas la suppression. Elle enregistre chaque événement système crucial (Synchronisation, Migration, Suppression de masse).
+*   **Structure :** Clé (`key`), Valeur (`value` - JSONB), Horodatage automatique.
 
 ---
 
