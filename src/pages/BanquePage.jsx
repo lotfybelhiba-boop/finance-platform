@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, Calendar, Banknote, Users, FileSpreadsheet, CreditCard, ShieldCheck, RotateCcw } from 'lucide-react';
 import { getBankTransactions, saveBankTransactions, getFactures, getClients, getStorage, setStorage } from '../services/storageService';
+import { isInvoiceNonDeclare } from '../utils/billingUtils';
 import { generatePendingPersoCharges, PERSO_CATEGORIES } from '../utils/persoUtils';
 import ImportChargesModal from '../components/ImportChargesModal';
 import BankReconciliationTab from '../components/BankReconciliationTab';
@@ -112,7 +113,8 @@ const BanquePage = () => {
     const autoTransactions = factures
         .filter(f => f.statut === 'Paid')
         .flatMap(f => {
-            const isNonDeclare = f.id.startsWith('ND-');
+            const clientObj = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
+            const isNonDeclare = isInvoiceNonDeclare(f, clientObj);
 
             // Extract the month and year from the service period start, or fallback to emission date
             const serviceDate = f.periodeDebut ? new Date(f.periodeDebut) : new Date(f.dateEmi);

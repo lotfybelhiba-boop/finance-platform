@@ -11,7 +11,8 @@ import EmployeeWorkloadChart from '../components/EmployeeWorkloadChart';
 import ScrollingBanner from '../components/ScrollingBanner';
 import UpcomingDeadlinesCard from '../components/UpcomingDeadlinesCard';
 import { getBankTransactions, getFactures, getClients, getStorage } from '../services/storageService';
-import { Users, Briefcase, RefreshCw, Zap } from 'lucide-react';
+import { FileText, Users, CreditCard, Activity, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Wallet, Percent, DollarSign } from 'lucide-react';
+import { isInvoiceNonDeclare } from '../utils/billingUtils';
 
 const DashboardPage = () => {
     const [manualTransactions, setManualTransactions] = React.useState([]);
@@ -50,7 +51,8 @@ const DashboardPage = () => {
     const autoTransactions = factures
         .filter(f => f.statut === 'Paid')
         .flatMap(f => {
-            const isNonDeclare = f.id.startsWith('ND-');
+            const clientObj = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
+            const isNonDeclare = isInvoiceNonDeclare(f, clientObj);
             
             const baseTrans = {
                 amount: parseFloat(f.montant) || 0,

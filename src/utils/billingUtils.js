@@ -1,6 +1,30 @@
 // src/utils/billingUtils.js
 
 /**
+ * Détermine de manière robuste (Zéro Faille) si une facture est "Non Déclarée" (ND).
+ * Priorité absolue au paramétrage du client.
+ * 
+ * @param {Object} facture - La facture à évaluer
+ * @param {Object} clientObj - L'objet client associé
+ * @returns {boolean}
+ */
+export const isInvoiceNonDeclare = (facture, clientObj) => {
+    // 1. Si on a le client, son paramétrage fait loi absolue.
+    if (clientObj) {
+        if (clientObj.sousTVA === true || clientObj.sousTVA === 'Oui') return false;
+        if (clientObj.sousTVA === false || clientObj.sousTVA === 'Non') return true;
+    }
+    
+    // 2. Fallback si le client n'a pas de paramétrage explicite ou est introuvable.
+    if (facture && facture.id) {
+        if (facture.id.startsWith('ND-') || facture.id === 'non déclarée') return true;
+    }
+    
+    // Par défaut, c'est déclaré.
+    return false;
+};
+
+/**
  * Calcule globalement et avec précision les factures en attente basées
  * sur le "Cycle de facturation" personnalisé de chaque client.
  * 

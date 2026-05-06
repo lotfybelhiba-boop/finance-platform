@@ -8,7 +8,7 @@ import { Search, Plus, Trash2, Edit, Send, Printer, History, ShieldCheck, Archiv
 import { useNavigate } from 'react-router-dom';
 
 import { getFactures, saveFactures, getClients, getStorage, setStorage } from '../services/storageService';
-import { calculatePendingInvoices } from '../utils/billingUtils';
+import { calculatePendingInvoices, isInvoiceNonDeclare } from '../utils/billingUtils';
 
 const FacturesPage = () => {
     const navigate = useNavigate();
@@ -225,7 +225,13 @@ const FacturesPage = () => {
         return [...filteredFactures].sort((a, b) => {
             let aVal = a[sortConfig.key] || '';
             let bVal = b[sortConfig.key] || '';
-            if (sortConfig.key === 'id') return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal, undefined, { numeric: true }) : bVal.localeCompare(aVal, undefined, { numeric: true });
+            if (sortConfig.key === 'id') {
+                const safeA = String(aVal || "");
+                const safeB = String(bVal || "");
+                return sortConfig.direction === 'asc' 
+                    ? safeA.localeCompare(safeB, undefined, { numeric: true }) 
+                    : safeB.localeCompare(safeA, undefined, { numeric: true });
+            }
             return sortConfig.direction === 'asc' ? (aVal < bVal ? -1 : 1) : (aVal > bVal ? -1 : 1);
         });
     }, [filteredFactures, sortConfig]);
@@ -297,7 +303,7 @@ const FacturesPage = () => {
                                 client: facture.client, 
                                 amount: facture.montant,
                                 currentStatus: newStatus,
-                                isNonDeclare: facture.id && (facture.id.startsWith('ND-') || facture.id === 'non déclarée')
+                                isNonDeclare: isInvoiceNonDeclare(facture, clients.find(c => c.id === facture.clientId || c.enseigne === facture.client))
                             });
                         } else {
                             setFactures(prev => prev.map(f => f.id === facture.id ? {...f, statut: newStatus} : f));
@@ -331,7 +337,7 @@ const FacturesPage = () => {
                 groups[f.client].months.add(d.toLocaleDateString('fr-FR', { month: 'short' }) + ' ' + d.getFullYear().toString().slice(-2));
             }
         });
-        return Object.values(groups).sort((a,b) => a.name.localeCompare(b.name));
+        return Object.values(groups).sort((a,b) => (a.name || "").localeCompare(b.name || ""));
     }, [factures]);
 
     const enAttenteSum = factures.filter(f => f.statut === 'Sent' || f.statut === 'Late' || f.statut === 'Partially Paid' || f.statut === 'Paid (Unreconciled)').reduce((acc, f) => acc + (parseFloat(f.montant) - (f.montantPaye || 0)), 0);
@@ -346,7 +352,7 @@ const FacturesPage = () => {
         // Filtre : Uniquement les clients déclarés (TVA) payant via BIAT
         return clients
             .filter(c => c.sousTVA !== false && c.sousTVA !== 'Non')
-            .sort((a, b) => a.enseigne.localeCompare(b.enseigne))
+            .sort((a, b) => (a.enseigne || "").localeCompare(b.enseigne || ""))
             .map(clientObj => {
                 const clientFacts = realFactures.filter(f => f.clientId === clientObj.id || f.client === clientObj.enseigne);
                 const isND = false; // Par définition
@@ -604,9 +610,7 @@ const FacturesPage = () => {
                                             <tbody>
                                                 {group.items.map(f => {
                                                     const clientObj = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
-                                                    const isND = (f.id && (f.id.startsWith('ND-') || f.id === 'non déclarée')) 
-                                                        || f.compteEncaissement === 'QNB' 
-                                                        || (clientObj && (clientObj.sousTVA === false || clientObj.sousTVA === 'Non'));
+                                                    const isND = isInvoiceNonDeclare(f, clientObj);
                                                     
                                                     if (f.isTodo) {
                                                         return (
