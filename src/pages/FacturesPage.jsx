@@ -14,6 +14,7 @@ const FacturesPage = () => {
     const navigate = useNavigate();
     const [clients, setClients] = useState(() => getClients() || []);
     const [filter, setFilter] = useState('all');
+    const [declareFilter, setDeclareFilter] = useState('all');
     const [clientFilter, setClientFilter] = useState('all');
     const [monthFilter, setMonthFilter] = useState('all');
     const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
@@ -216,9 +217,15 @@ const FacturesPage = () => {
                 const year = dateStr.split('-')[0];
                 if (year !== yearFilter) return false;
             }
+            if (declareFilter !== 'all') {
+                const clientObj = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
+                const isND = isInvoiceNonDeclare(f, clientObj);
+                if (declareFilter === 'declare' && isND) return false;
+                if (declareFilter === 'non_declare' && !isND) return false;
+            }
             return true;
         });
-    }, [todoFactures, factures, filter, clientFilter, monthFilter, yearFilter, activeTab]);
+    }, [todoFactures, factures, filter, clientFilter, declareFilter, monthFilter, yearFilter, activeTab, clients]);
 
     const sortedFactures = useMemo(() => {
         if (!sortConfig.key) return filteredFactures;
@@ -536,6 +543,11 @@ const FacturesPage = () => {
                                 <option value='2024'>2024</option>
                                 <option value='2025'>2025</option>
                                 <option value='2026'>2026</option>
+                            </select>
+                            <select value={declareFilter} onChange={e => setDeclareFilter(e.target.value)} style={{ padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-color)', fontWeight: '400', fontSize: '11px', fontFamily: 'var(--professional-font)' }}>
+                                <option value='all'>Tous Types</option>
+                                <option value='declare'>Déclarée (BIAT)</option>
+                                <option value='non_declare'>Non Déclarée (ND)</option>
                             </select>
                         </div>
                         <button onClick={() => setIsModalOpen(true)} className='btn-primary' style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
