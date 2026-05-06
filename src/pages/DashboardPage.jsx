@@ -11,7 +11,7 @@ import EmployeeWorkloadChart from '../components/EmployeeWorkloadChart';
 import ScrollingBanner from '../components/ScrollingBanner';
 import UpcomingDeadlinesCard from '../components/UpcomingDeadlinesCard';
 import { getBankTransactions, getFactures, getClients, getStorage } from '../services/storageService';
-import { FileText, Users, CreditCard, Activity, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Wallet, Percent, DollarSign } from 'lucide-react';
+import { FileText, Users, CreditCard, Activity, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Wallet, Percent, DollarSign, Briefcase, RefreshCw, Zap } from 'lucide-react';
 import { isInvoiceNonDeclare } from '../utils/billingUtils';
 
 const DashboardPage = () => {
