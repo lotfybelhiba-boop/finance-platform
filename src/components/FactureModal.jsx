@@ -329,10 +329,13 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, ta
 
         if (isNaN(cycleDay) || cycleDay < 1 || cycleDay > 31) cycleDay = 1;
 
-        const firstDay = new Date(targetY, targetM, cycleDay);
+        const firstDay = cycleDay === 1
+            ? new Date(targetY, targetM, 1)
+            : new Date(targetY, targetM - 1, cycleDay);
+            
         const lastDay = cycleDay === 1
             ? new Date(targetY, targetM + 1, 0)
-            : new Date(targetY, targetM + 1, cycleDay - 1);
+            : new Date(targetY, targetM, cycleDay - 1);
 
         const fDPad = `${firstDay.getFullYear()}-${pad(firstDay.getMonth() + 1)}-${pad(firstDay.getDate())}`;
         const lDPad = `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`;
