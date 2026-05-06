@@ -610,15 +610,7 @@ const FacturesPage = () => {
                                     {/* Month Rows */}
                                     {isOpen && (
                                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                            <thead>
-                                                <tr style={{ background: 'var(--table-header-bg)', borderBottom: '1px solid var(--border-color)', fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', fontFamily: 'var(--professional-font)' }}>
-                                                    <th style={{ padding: '6px 16px', textAlign: 'left', fontWeight: '700' }}>Client & N° Facture</th>
-                                                    <th style={{ padding: '6px 16px', textAlign: 'left', fontWeight: '700' }}>Période</th>
-                                                    <th style={{ padding: '6px 16px', textAlign: 'right', fontWeight: '700' }}>Montant (TND)</th>
-                                                    <th style={{ padding: '6px 16px', textAlign: 'center', fontWeight: '700' }}>Statut</th>
-                                                    <th style={{ padding: '6px 16px', textAlign: 'right', fontWeight: '700' }}>Actions</th>
-                                                </tr>
-                                            </thead>
+
                                             <tbody>
                                                 {group.items.map(f => {
                                                     const clientObj = clients.find(c => c.id === f.clientId || c.enseigne === f.client);
