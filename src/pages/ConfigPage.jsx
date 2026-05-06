@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Header from '../components/Header';
 import { Settings, Briefcase, Tag, Users, Plus, Trash2, Edit2, Calendar, HardDrive, Download, Upload } from 'lucide-react';
-import { initialSecteurs, initialServices, loadConfig, saveConfig } from '../data/defaultConfig';
+import { initialSecteurs, initialServices, initialRh, loadConfig, saveConfig } from '../data/defaultConfig';
 import RHFormModal from '../components/RHFormModal';
 import { getClients } from '../services/storageService';
 
@@ -24,7 +24,7 @@ const ConfigPage = () => {
         return loaded.length > 0 ? loaded : initialServices;
     });
 
-    const [rhList, setRhList] = useState(() => loadConfig('rh', []));
+    const [rhList, setRhList] = useState(() => loadConfig('rh', initialRh));
 
     // STORAGE CALCULATION
     const [storageInfo, setStorageInfo] = useState({ used: 0, mbUsed: 0, max: 5, percentage: 0 });

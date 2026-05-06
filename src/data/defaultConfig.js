@@ -98,6 +98,14 @@ export const initialSecteurs = [
     }
 ];
 
+export const initialRh = [
+    { id: 'RH_1', nom: 'Noursene ben hsan', poste: 'Développeuse / Développeur', actif: true, taches: 'Développement Web & IT', dateDebut: '2025-01-01' },
+    { id: 'RH_2', nom: 'Marwene Chatti', poste: 'Graphiste / Designer', actif: true, taches: 'Design Graphique & Création de contenu', dateDebut: '2025-01-01' },
+    { id: 'RH_3', nom: 'Soumaya Toukebri', poste: 'Marketing Digital', actif: true, taches: 'Stratégie Marketing & Réseaux Sociaux', dateDebut: '2025-01-01' },
+    { id: 'RH_4', nom: 'Safa Tizaoui', poste: 'Community Manager', actif: true, taches: 'Community Management & Rédaction', dateDebut: '2025-01-01' },
+    { id: 'RH_5', nom: 'Lotfi Belhiba', poste: 'Manager / Directeur', actif: true, taches: 'Gestion de Projet & Stratégie', dateDebut: '2025-01-01' }
+];
+
 export const initialServices = [
     // 1️⃣ Stratégie & Conseil
     { id: 'S_STRAT_1', categorie: 'Stratégie & Conseil', nom: 'Audit marketing global (positionnement, canaux, cohérence)', prix: 0 },
