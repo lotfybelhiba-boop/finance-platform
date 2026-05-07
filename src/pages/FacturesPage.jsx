@@ -347,8 +347,8 @@ const FacturesPage = () => {
         return Object.values(groups).sort((a,b) => (a.name || "").localeCompare(b.name || ""));
     }, [factures]);
 
-    const enAttenteSum = factures.filter(f => f.statut === 'Sent' || f.statut === 'Late' || f.statut === 'Partially Paid' || f.statut === 'Paid (Unreconciled)').reduce((acc, f) => acc + (parseFloat(f.montant) - (f.montantPaye || 0)), 0);
-    const recuSum = factures.filter(f => f.statut.includes('Paid')).reduce((acc, f) => acc + (f.montantPaye || parseFloat(f.montant)), 0);
+    const enAttenteSum = factures.filter(f => f.statut === 'Sent' || f.statut === 'Late' || f.statut === 'Partially Paid' || f.statut === 'Paid (Unreconciled)').reduce((acc, f) => acc + (parseFloat(f.montant) - parseFloat(f.montantPaye || 0)), 0);
+    const recuSum = factures.filter(f => f.statut.includes('Paid')).reduce((acc, f) => acc + (parseFloat(f.montantPaye) || parseFloat(f.montant) || 0), 0);
     const retardCount = factures.filter(f => f.statut === 'Late').length;
 
     const monthLabels = ["Jan", "Fev", "Mar", "Avr", "Mai", "Juin", "Juil", "Aou", "Sep", "Oct", "Nov", "Dec"];

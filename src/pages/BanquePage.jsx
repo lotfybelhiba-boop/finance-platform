@@ -123,7 +123,7 @@ const BanquePage = () => {
             const baseTrans = {
                 id: `auto-${f.id}`,
                 date: f.dateEmi, // We keep date as original record date for sorting
-                desc: `Facture ${f.client}`,
+                desc: `Facture ${f.clientName || f.client}`,
                 bank: f.compteEncaissement || (isNonDeclare ? 'QNB' : 'BIAT'),
                 type: 'Credit',
                 amount: parseFloat(f.montant) || 0,
@@ -489,12 +489,20 @@ const BanquePage = () => {
     }, [salaryProposals, isGroupedByRH]);
 
     const handleValidateSalary = (items) => {
+        const getExactPaymentDate = (serviceMonthStr) => {
+            const [sYear, sMonth] = serviceMonthStr.split('-').map(Number);
+            // sMonth is 1-12. Passing sMonth directly as the month index (0-11) targets the NEXT month.
+            let d = new Date(sYear, sMonth, 5); 
+            if (d.getDay() === 0) d.setDate(6); // If Sunday, push to Monday 6th
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+
         // Individual validation passes through the sleek TransactionModal
         if (items.length === 1) {
             const item = items[0];
-            const paymentDate = !isAnnualView ? new Date(yearInt, parseInt(monthStr, 10) - 1, 5).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            const exactDate = getExactPaymentDate(item.serviceMonthStr);
             setEditingTransaction({
-                date: new Date().toISOString().split('T')[0],
+                date: exactDate, // Value date is the exact payment date
                 desc: `Salaire ${item.name} (${item.project}) - ${item.serviceMonthName} ${item.serviceYear}`,
                 bank: 'BIAT',
                 type: 'Debit',
@@ -503,7 +511,7 @@ const BanquePage = () => {
                 chargeType: 'RH',
                 chargeNature: 'Fixes',
                 serviceMonth: item.serviceMonthStr,
-                paymentDate: paymentDate,
+                paymentDate: exactDate, // Payment date is the exact payment date
                 isAuto: false
             });
             setIsModalOpen(true);
@@ -511,7 +519,7 @@ const BanquePage = () => {
         }
 
         // Bulk validation case
-        const confirmMsg = `Valider le paiement de ${items.length} salaires d'un coup ?`;
+        const confirmMsg = `Valider le paiement de ${items.length} salaires d'un coup ?\n(Date de valeur: 5 du mois suivant)`;
         if (!window.confirm(confirmMsg)) return;
 
         let chosenBank = window.prompt("Source de paiement globale pour ces salaires ?\n(Ex: BIAT, QNB, Espèces, Capital Personnel)", "BIAT");
@@ -519,10 +527,10 @@ const BanquePage = () => {
 
         const newTxs = [...manualTransactions];
         items.forEach((item, idx) => {
-            const paymentDate = !isAnnualView ? new Date(yearInt, parseInt(monthStr, 10) - 1, 5).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+            const exactDate = getExactPaymentDate(item.serviceMonthStr);
             newTxs.push({
                 id: Date.now() + idx + Math.floor(Math.random() * 1000),
-                date: new Date().toISOString().split('T')[0],
+                date: exactDate,
                 desc: `Salaire ${item.name} (${item.project}) - ${item.serviceMonthName} ${item.serviceYear}`,
                 bank: chosenBank,
                 type: 'Debit',
@@ -531,14 +539,14 @@ const BanquePage = () => {
                 chargeType: 'RH',
                 chargeNature: 'Fixes',
                 serviceMonth: item.serviceMonthStr,
-                paymentDate: paymentDate,
+                paymentDate: exactDate,
                 isAuto: false
             });
         });
 
         setManualTransactions(newTxs);
         saveBankTransactions(newTxs);
-        alert("Salaires validés en lot.");
+        alert("Salaires validés en lot avec la date de valeur (le 5).");
     };
 
     const tvaVentesProposals = React.useMemo(() => {
@@ -551,7 +559,7 @@ const BanquePage = () => {
                 if (!alreadyPaid && !isIgnored) {
                     proposals.push({
                         id: f.id,
-                        client: f.client,
+                        client: f.clientName || f.client,
                         date: f.dateEmi,
                         amount: f.tva,
                         statut: f.statut,
@@ -929,7 +937,7 @@ const BanquePage = () => {
                                     pendingAlerts.push({
                                         id: `inv-${f.id}`,
                                         type: f.statut === 'Late' ? 'Retard' : 'Facturé',
-                                        client: f.client,
+                                        client: f.clientName || f.client,
                                         desc: `Facture ${f.id}`,
                                         date: calculatedDate,
                                         amount: f.montant,
@@ -1067,7 +1075,6 @@ const BanquePage = () => {
                     style={{
                         padding: '6px 16px',
                         borderRadius: '10px',
-                        border: 'none',
                         background: activeTab === 'Rapprochement' ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
                         color: activeTab === 'Rapprochement' ? '#8b5cf6' : 'var(--text-main)',
                         fontSize: '12px',

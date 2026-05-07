@@ -273,7 +273,7 @@ export const importData = async (req, res) => {
       }
 
       return { success: true };
-    });
+    }, { maxWait: 20000, timeout: 600000 });
 
     res.json(result);
   } catch (error) {

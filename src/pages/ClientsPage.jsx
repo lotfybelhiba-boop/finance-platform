@@ -701,106 +701,147 @@ const ClientsPage = () => {
                     })}
                 </div >
             ) : (
-                <div style={{ background: 'var(--card-bg)', borderRadius: '24px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.02)', marginTop: '8px' }}>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Enseigne</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Projet / Secteur</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Statut</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Régime</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Facturation</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ancienneté</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>CA / Marge</th>
-                                    <th style={{ padding: '8px 16px', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'right' }}>Actions</th>
+                            <thead style={{ background: 'var(--card-bg)', position: 'sticky', top: 0, zIndex: 10 }}>
+                                <tr style={{ borderBottom: '2px solid var(--bg-main)' }}>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Enseigne</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Projet / Secteur</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Statut</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Régime</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Facturation</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ancienneté</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>CA / Marge</th>
+                                    <th style={{ padding: '10px 14px', fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'right' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {displayedClients.map((client) => {
-                                    const statusStyle = getStatusStyle(client.etatClient);
+                                    const getLightStatusStyle = (status) => {
+                                        switch (status) {
+                                            case 'Actif': return { bg: 'rgba(16, 185, 129, 0.1)', color: '#059669', border: 'rgba(16, 185, 129, 0.2)' };
+                                            case 'Pause': return { bg: 'rgba(245, 158, 11, 0.1)', color: '#d97706', border: 'rgba(245, 158, 11, 0.2)' };
+                                            case 'Inactif': return { bg: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', border: 'rgba(239, 68, 68, 0.2)' };
+                                            case 'Prospect': return { bg: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', border: 'rgba(59, 130, 246, 0.2)' };
+                                            default: return { bg: 'var(--bg-main)', color: 'var(--text-muted)', border: 'var(--border-color)' };
+                                        }
+                                    };
+                                    const lightStatus = getLightStatusStyle(client.etatClient);
+                                    
                                     const isAbonnement = client.regime === 'Abonnement';
                                     const revenue = isAbonnement ? client.montantMensuel : client.montantTotal;
+                                    const missingInfo = client.etatClient === 'Actif' && (
+                                        ['enseigne', 'secteur', 'mail', 'telephone', 'projet', 'employeAssocie', 'charge', 'adresse', 'dateDebut', 'regime'].some(f => !client[f] || String(client[f]).trim() === '') || 
+                                        !(client.projectCosts && client.projectCosts.some(cost => cost.nom && cost.montant))
+                                    );
 
                                     return (
-                                        <tr key={client.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s', ':hover': { background: 'var(--bg-main)' }, fontSize: '12px' }}>
-                                            <td style={{ padding: '8px 16px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    {client.logo ? (
-                                                        <div style={{ position: 'relative' }}>
-                                                            <img src={client.logo} alt="Logo" style={{ width: '28px', height: '28px', borderRadius: '4px', objectFit: 'contain', background: 'white', border: '1px solid var(--border-color)' }} />
-                                                            {client.etatClient === 'Actif' && (
-                                                                ['enseigne', 'secteur', 'mail', 'telephone', 'projet', 'employeAssocie', 'charge', 'adresse', 'dateDebut', 'regime'].some(f => !client[f] || String(client[f]).trim() === '') || 
-                                                                !(client.projectCosts && client.projectCosts.some(cost => cost.nom && cost.montant))
-                                                            ) && (
-                                                                <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '10px', height: '10px', background: 'var(--danger)', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '8px', fontWeight: 'bold' }} title="Fiche incomplète (Champs obligatoires ou structure de coûts manquants)">i</div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <div style={{ width: '28px', height: '28px', borderRadius: '4px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', position: 'relative' }}>
-                                                            {client.enseigne.substring(0, 2).toUpperCase()}
-                                                            {client.etatClient === 'Actif' && (
-                                                                ['enseigne', 'secteur', 'mail', 'telephone', 'projet', 'employeAssocie', 'charge', 'adresse', 'dateDebut', 'regime'].some(f => !client[f] || String(client[f]).trim() === '') || 
-                                                                !(client.projectCosts && client.projectCosts.some(cost => cost.nom && cost.montant))
-                                                            ) && (
-                                                                <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '10px', height: '10px', background: 'var(--danger)', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '8px', fontWeight: 'bold' }} title="Fiche incomplète (Champs obligatoires ou structure de coûts manquants)">i</div>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                        <tr key={client.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.15s ease', background: 'transparent' }} onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-main)'; }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                                            
+                                            {/* ENSEIGNE */}
+                                            <td style={{ padding: '8px 14px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <div style={{ position: 'relative' }}>
+                                                        {client.logo ? (
+                                                            <img src={client.logo} alt="Logo" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain', background: 'white', border: '1px solid var(--border-color)' }} />
+                                                        ) : (
+                                                            <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>
+                                                                {client.enseigne.substring(0, 2).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                        {missingInfo && (
+                                                            <div style={{ position: 'absolute', top: '-4px', right: '-4px', width: '12px', height: '12px', background: 'var(--danger)', borderRadius: '50%', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '7px', fontWeight: '900' }} title="Fiche incomplète">!</div>
+                                                        )}
+                                                    </div>
                                                     <div>
-                                                        <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13px' }}>{client.enseigne}</div>
-                                                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{client.id}</div>
+                                                        <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '12px', letterSpacing: '-0.01em', lineHeight: '1.2' }}>{client.enseigne}</div>
+                                                        <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '1px', fontFamily: 'monospace' }}>{client.id}</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '8px 16px' }}>
-                                                {client.projet && (
-                                                    <div style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-main)', marginBottom: '2px' }}>{client.projet}</div>
-                                                )}
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{client.secteur || 'Secteur NC'}</div>
+
+                                            {/* PROJET / SECTEUR */}
+                                            <td style={{ padding: '8px 14px' }}>
+                                                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-main)', marginBottom: '2px', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{client.projet || 'Projet Standard'}</div>
+                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                                    {client.secteur || 'Secteur Non Défini'}
+                                                </div>
                                             </td>
-                                            <td style={{ padding: '8px 16px' }}>
-                                                <span style={{ padding: '3px 8px', borderRadius: '100px', fontSize: '10px', fontWeight: '600', background: statusStyle.bg, color: statusStyle.color }}>
+
+                                            {/* STATUT */}
+                                            <td style={{ padding: '8px 14px' }}>
+                                                <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', background: lightStatus.bg, color: lightStatus.color, border: `1px solid ${lightStatus.border}`, letterSpacing: '0.01em', display: 'inline-block' }}>
                                                     {client.etatClient}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '8px 16px' }}>
-                                                <span style={{ fontSize: '11px', fontWeight: '600', color: isAbonnement ? 'var(--accent-gold)' : 'var(--text-secondary)', background: isAbonnement ? 'rgba(255,193,5,0.1)' : 'rgba(15,23,42,0.05)', padding: '3px 6px', borderRadius: '4px' }}>
+
+                                            {/* REGIME */}
+                                            <td style={{ padding: '8px 14px' }}>
+                                                <span style={{ fontSize: '10px', fontWeight: '700', color: isAbonnement ? 'var(--accent-gold)' : 'var(--text-secondary)', background: isAbonnement ? 'rgba(212, 175, 55, 0.08)' : 'var(--bg-main)', border: `1px solid ${isAbonnement ? 'rgba(212, 175, 55, 0.2)' : 'var(--border-color)'}`, padding: '3px 8px', borderRadius: '6px' }}>
                                                     {client.regime}
                                                 </span>
                                             </td>
-                                            <td style={{ padding: '8px 16px' }}>
+
+                                            {/* FACTURATION */}
+                                            <td style={{ padding: '8px 14px' }}>
                                                 {client.etatClient === 'Actif' ? (() => {
                                                     const status = getBillingStatus(client.id);
                                                     return (
-                                                        <span style={{ fontSize: '10px', fontWeight: '800', color: status.color, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            <div style={{ width: '6px', height: '6px', background: status.color, borderRadius: '50%' }}></div>
-                                                            {status.label}
-                                                        </span>
+                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', background: status.color === '#10b981' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)', border: `1px solid ${status.color === '#10b981' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}` }}>
+                                                            <div style={{ width: '4px', height: '4px', background: status.color, borderRadius: '50%' }}></div>
+                                                            <span style={{ fontSize: '10px', fontWeight: '700', color: status.color === '#10b981' ? '#059669' : '#d97706' }}>
+                                                                {status.label}
+                                                            </span>
+                                                        </div>
                                                     );
                                                 })() : <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>-</span>}
                                             </td>
-                                            <td style={{ padding: '8px 16px' }}>
-                                                <div style={{ fontSize: '11px', fontWeight: '500', color: 'var(--text-main)' }}>{calculateDuration(client.dateDebut)}</div>
+
+                                            {/* ANCIENNETE */}
+                                            <td style={{ padding: '8px 14px' }}>
+                                                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>{calculateDuration(client.dateDebut)}</div>
                                             </td>
-                                            <td style={{ padding: '8px 16px' }}>
-                                                <div style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '12px' }}>{revenue ? formatMoney(revenue) : '--'}</div>
+
+                                            {/* CA / MARGE */}
+                                            <td style={{ padding: '8px 14px' }}>
+                                                <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '12px' }}>{revenue ? formatMoney(revenue) : '--'}</div>
                                                 {client.netMargin !== undefined && (
-                                                    <div style={{ fontSize: '11px', fontWeight: '600', color: client.netMargin >= 0 ? 'var(--success)' : 'var(--danger)', marginTop: '2px' }}>
-                                                        {client.netMargin > 0 ? '+' : ''}{formatMoney(client.netMargin)} Marge
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', fontSize: '9px', fontWeight: '700', color: client.netMargin >= 0 ? '#059669' : '#dc2626', marginTop: '2px', padding: '1px 4px', borderRadius: '3px', background: client.netMargin >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)' }}>
+                                                        {client.netMargin > 0 ? '+' : ''}{formatMoney(client.netMargin)}
                                                     </div>
                                                 )}
                                             </td>
-                                            <td style={{ padding: '8px 16px', textAlign: 'right' }}>
+
+                                            {/* ACTIONS */}
+                                            <td style={{ padding: '8px 14px', textAlign: 'right' }}>
                                                 <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                                                    <button onClick={() => handleEditClient(client)} style={{ background: 'transparent', border: 'none', borderRadius: '4px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }} title="Modifier">
-                                                        <Edit2 size={14} />
+                                                    <button 
+                                                        onClick={() => handleEditClient(client)} 
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-main)'; e.currentTarget.style.color = 'var(--text-main)'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+                                                        style={{ background: 'transparent', border: '1px solid transparent', borderRadius: '6px', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)', transition: 'all 0.15s' }} 
+                                                        title="Modifier"
+                                                    >
+                                                        <Edit2 size={13} />
                                                     </button>
-                                                    <button onClick={() => handleArchiveClient(client.id)} style={{ background: 'transparent', border: 'none', borderRadius: '4px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--warning)' }} title="Archiver">
-                                                        <Archive size={14} />
+                                                    <button 
+                                                        onClick={() => handleArchiveClient(client.id)} 
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245, 158, 11, 0.1)'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                                                        style={{ background: 'transparent', border: '1px solid transparent', borderRadius: '6px', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#f59e0b', transition: 'all 0.15s' }} 
+                                                        title="Archiver"
+                                                    >
+                                                        <Archive size={13} />
                                                     </button>
-                                                    <button onClick={() => handleDeleteClient(client.id)} style={{ background: 'transparent', border: 'none', borderRadius: '4px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--danger)' }} title="Supprimer">
-                                                        <Trash2 size={14} />
+                                                    <button 
+                                                        onClick={() => handleDeleteClient(client.id)} 
+                                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                                                        style={{ background: 'transparent', border: '1px solid transparent', borderRadius: '6px', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ef4444', transition: 'all 0.15s' }} 
+                                                        title="Supprimer"
+                                                    >
+                                                        <Trash2 size={13} />
                                                     </button>
                                                 </div>
                                             </td>
@@ -809,17 +850,21 @@ const ClientsPage = () => {
                                 })}
                             </tbody>
                         </table>
+                        
+                        {displayedClients.length === 0 && (
+                            <div style={{ padding: '60px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--bg-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)' }}>
+                                    <Search size={20} color="var(--text-muted)" />
+                                </div>
+                                <div>
+                                    <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: '700', color: 'var(--text-main)' }}>Aucun client trouvé</h4>
+                                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>Essayez d'ajuster vos filtres ou de créer un nouveau client.</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
-
-            {
-                displayedClients.length === 0 && (
-                    <div style={{ padding: '60px 24px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: '24px', border: '1px dashed var(--border-color)' }}>
-                        <p style={{ fontSize: '16px', fontWeight: '500' }}>Aucun client trouvé pour ce filtre.</p>
-                    </div>
-                )
-            }
 
             {/* MODAL */}
             {isClientModalOpen && (

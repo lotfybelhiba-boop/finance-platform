@@ -3,7 +3,7 @@ import Header from '../components/Header';
 import { Search, Plus, Trash2, Filter, ArrowUpRight, CreditCard, Heart, MoreHorizontal, EyeOff, LayoutGrid } from 'lucide-react';
 import { getBankTransactions, saveBankTransactions, getStorage, setStorage } from '../services/storageService';
 import { generatePendingPersoCharges, PERSO_CATEGORIES } from '../utils/persoUtils';
-import ImportChargesModal from '../components/ImportChargesModal';
+import PremiumImportModal from '../components/PremiumImportModal';
 
 const ViePersoPage = () => {
     const [transactions, setTransactions] = useState(() => getBankTransactions());
@@ -212,12 +212,11 @@ const ViePersoPage = () => {
             )}
 
             {isImportModalOpen && (
-                <ImportChargesModal
+                <PremiumImportModal
                     isOpen={isImportModalOpen}
                     onClose={() => setIsImportModalOpen(false)}
                     onSave={handleImportSave}
                     existingTransactions={transactions}
-                    importCategory="Perso"
                 />
             )}
         </div>
