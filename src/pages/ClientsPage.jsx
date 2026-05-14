@@ -3,268 +3,19 @@ import Header from '../components/Header';
 import ClientModal from '../components/ClientModal';
 import { Search, Plus, MoreHorizontal, LayoutGrid, List, Edit2, Trash2, Archive, Upload, Users, RefreshCw, Briefcase, ShieldAlert } from 'lucide-react';
 import Papa from 'papaparse';
-import { getClients, saveClients, getStorage, getFactures } from '../services/storageService';
+import { useData } from '../context/DataContext';
+import { getStorage, getFactures } from '../services/storageService';
 import { calculatePendingInvoices } from '../utils/billingUtils';
 
-
-const defaultDummyClients = [
-    {
-        id: 'CLI-KINDY-001',
-        enseigne: 'Elkindy',
-        projet: 'Conservatoire',
-        secteur: 'Éducation & Formation',
-        etatClient: 'Actif',
-        charge: 'Lotfi Erraies',
-        dateDebut: '2024-03-01',
-        mf: '0797113J',
-        mail: 'conservatoireelkindy@gmail.com',
-        telephone: '20669545',
-        adresse: 'Villa N°24, Rue Manzel Mabrouk City olympique 1003 Tunis, Tunisie',
-        web: 'elkindy.dal.com.tn',
-        regime: 'Abonnement',
-        montantMensuel: 800,
-        jourPaiement: 5,
-        sousTVA: true,
-        servicesRecurrents: [],
-        projectCosts: [],
-        totalCosts: 0,
-        netMargin: 800
-    },
-    {
-        id: 'CLI-BOSCH-001',
-        enseigne: 'Robert Bosch Tunisie',
-        projet: 'Fabrication d’équipements industriels',
-        secteur: 'Industrie & Fabrication',
-        etatClient: 'Actif',
-        charge: 'Aymen Meddeb',
-        dateDebut: '2025-05-15',
-        mf: '1432014Q',
-        mail: 'Aymen.Meddeb@bosch.com',
-        telephone: '58521422',
-        adresse: '12 rue Lac Toba, Les Berges du Lac, 1053 Tunis',
-        web: 'https://www.bosch-homecomfort.com/tn/fr/residentiel/accueil/',
-        regime: 'Abonnement',
-        montantMensuel: 4990,
-        jourPaiement: 5,
-        servicesRecurrents: [
-            { id: 1, desc: 'Content Creation and moderation (facebook only)', prix: 1440 },
-            { id: 2, desc: 'Campaign Management', prix: 2000 },
-            { id: 3, desc: 'Deliverables & Reporting', prix: 1550 }
-        ],
-        projectCosts: [],
-        totalCosts: 0,
-        netMargin: 4990
-    },
-    {
-        id: 'CLI-001',
-        enseigne: 'Acme Corp',
-        projet: 'Refonte Site E-commerce',
-        secteur: 'Retail',
-        etatClient: 'Actif',
-        charge: 'Sarah Connor',
-        dateDebut: '2024-01-15',
-        mf: '1234567/A/A/M/000',
-        mail: 'contact@acme.com',
-        adresse: 'Les Berges du Lac, Tunis',
-        regime: 'Abonnement',
-        montantMensuel: 1500,
-        jourPaiement: 5,
-        servicesRecurrents: [
-            { id: 1, desc: 'Community Management Premium' },
-            { id: 2, desc: 'Audit SEO Mensuel' }
-        ],
-        projectCosts: [
-            { id: 1, nom: 'Marketeur', montant: 500 },
-            { id: 2, nom: 'Designer', montant: 200 }
-        ],
-        totalCosts: 700,
-        netMargin: 800
-    },
-    {
-        id: 'CLI-002',
-        enseigne: 'TechCorp SA',
-        projet: 'Maintenance IT',
-        secteur: 'IT',
-        etatClient: 'Actif',
-        charge: 'Ahmed Ben Ali',
-        dateDebut: '2024-02-01',
-        mf: '9876543/B/B/N/111',
-        mail: 'ahmed@techcorp.tn',
-        telephone: '28 123 456',
-        adresse: '136 Ave de la liberté, Tunis',
-        regime: 'Abonnement',
-        montantMensuel: 2000,
-        jourPaiement: 1, // Start of month, will trigger black dot if no invoice
-        servicesRecurrents: [],
-        projectCosts: [],
-        totalCosts: 0,
-        netMargin: 2000
-    },
-    {
-        id: 'CLI-003',
-        enseigne: 'Global Mkt',
-        projet: 'Campagne Ads Q3',
-        secteur: 'Marketing',
-        etatClient: 'Actif',
-        charge: 'Sarah Mansour',
-        dateDebut: '2024-03-01',
-        regime: 'Projet',
-        dureeMois: 3,
-        montantTotal: 4500,
-        datePaiement: '2024-06-30',
-        projectCosts: [
-            { id: 1, nom: 'Achat Media', montant: 1500 }
-        ],
-        totalCosts: 1500,
-        netMargin: 3000
-    },
-    {
-        id: 'CLI-004',
-        enseigne: 'Studio Design',
-        projet: 'Branding 2024',
-        secteur: 'Design',
-        etatClient: 'Actif',
-        charge: 'Karim Tounsi',
-        dateDebut: '2024-01-10',
-        regime: 'Abonnement',
-        montantMensuel: 800,
-        jourPaiement: 10,
-        servicesRecurrents: [],
-        projectCosts: [],
-        totalCosts: 0,
-        netMargin: 800
-    },
-    {
-        id: 'CLI-005',
-        enseigne: 'Retail Plus',
-        projet: 'Ouverture Boutique',
-        secteur: 'Commerce',
-        etatClient: 'Inactif',
-        charge: 'Sami Trabelsi',
-        dateDebut: '2023-11-01',
-        regime: 'Projet',
-        dureeMois: 1,
-        montantTotal: 1200,
-        projectCosts: [],
-        totalCosts: 0,
-        netMargin: 1200
-    }
-];
-
 const ClientsPage = () => {
+    const { clients, factures, addClient, updateClient, deleteClient, loading } = useData();
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
-
-    const [clients, setClients] = useState(() => {
-        let parsed = getClients() || [];
-        
-        // 1. DEDUPLICATION LOGIC (One-time check on load)
-        const groups = {};
-        parsed.forEach(c => {
-            const name = c.enseigne.toLowerCase().trim();
-            if (!groups[name]) groups[name] = [];
-            groups[name].push(c);
-        });
-
-        const finalParsed = [];
-        const migrationMap = {}; // { oldId: masterId }
-        let needsMigration = false;
-
-        Object.keys(groups).forEach(name => {
-            const list = groups[name];
-            if (list.length > 1) {
-                // Find best candidate (Master)
-                // Prefer ones that have actual recurring services or better MF
-                const master = list.reduce((best, curr) => {
-                    const bestScore = (best.servicesRecurrents?.length || 0) + (best.mail ? 2 : 0) + (best.mf ? 1 : 0);
-                    const currScore = (curr.servicesRecurrents?.length || 0) + (curr.mail ? 2 : 0) + (curr.mf ? 1 : 0);
-                    return currScore > bestScore ? curr : best;
-                }, list[0]);
-
-                if (master.sousTVA === 'Oui' || master.sousTVA === 'true') master.sousTVA = true;
-                if (master.sousTVA === 'Non' || master.sousTVA === 'false') master.sousTVA = false;
-                finalParsed.push(master);
-                list.forEach(c => {
-                    if (c.id !== master.id) {
-                        migrationMap[c.id] = master.id;
-                        needsMigration = true;
-                    }
-                });
-            } else {
-                let singleClient = list[0];
-                if (singleClient.sousTVA === 'Oui' || singleClient.sousTVA === 'true') singleClient.sousTVA = true;
-                if (singleClient.sousTVA === 'Non' || singleClient.sousTVA === 'false') singleClient.sousTVA = false;
-                finalParsed.push(singleClient);
-            }
-        });
-
-        // 2. SMART RE-INJECTION (Check by name or ID)
-        const checkExists = (candidate) => {
-            return finalParsed.some(c => 
-                c.id === candidate.id || 
-                c.enseigne.toLowerCase().trim() === candidate.enseigne.toLowerCase().trim()
-            );
-        };
-
-        if (!checkExists(defaultDummyClients.find(c => c.id === 'CLI-KINDY-001'))) {
-            finalParsed.push(defaultDummyClients.find(c => c.id === 'CLI-KINDY-001'));
-        }
-        if (!checkExists(defaultDummyClients.find(c => c.id === 'CLI-BOSCH-001'))) {
-            finalParsed.push(defaultDummyClients.find(c => c.id === 'CLI-BOSCH-001'));
-        }
-
-        // 3. APPLY MIGRATION IF NEEDED
-        if (needsMigration) {
-            console.log("Auto-merging duplicate clients and re-assigning records...");
-            
-            // Re-assign Factures
-            let factures = getFactures() || [];
-            let fModified = false;
-            factures = factures.map(f => {
-                if (f.clientId && migrationMap[f.clientId]) {
-                    f.clientId = migrationMap[f.clientId];
-                    fModified = true;
-                }
-                return f;
-            });
-            if (fModified) saveFactures(factures);
-
-            // Re-assign Bank Transactions
-            let txs = getStorage('mynds_bank_transactions', []);
-            let tModified = false;
-            txs = txs.map(t => {
-                if (t.clientId && migrationMap[t.clientId]) {
-                    t.clientId = migrationMap[t.clientId];
-                    tModified = true;
-                }
-                return t;
-            });
-            if (tModified) setStorage('mynds_bank_transactions', txs);
-
-            saveClients(finalParsed);
-        }
-
-        return finalParsed;
-    });
-
-    const [rhList, setRhList] = useState(() => getStorage('mynds_rh', []));
-
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState('Actif'); // Default to Active only
+    const [viewMode, setViewMode] = useState('table'); // Default to 'table' (list) instead of 'cards'
+    const [editingClient, setEditingClient] = useState(null);
+    const fileInputRef = React.useRef(null);
 
-    // Écouteur pour la synchronisation multi-onglets
-    useEffect(() => {
-        const syncData = () => {
-            const parsed = getClients();
-            if (parsed && parsed.length > 0) {
-                setClients(parsed);
-            }
-            setRhList(getStorage('mynds_rh', []));
-        };
-        window.addEventListener('storage', syncData);
-        return () => window.removeEventListener('storage', syncData);
-    }, []);
-
-    const factures = getFactures() || [];
     const pendingStats = React.useMemo(() => {
         return calculatePendingInvoices(clients, factures);
     }, [clients, factures]);
@@ -283,15 +34,6 @@ const ClientsPage = () => {
         }
         return { num: 0, label: 'À jour', color: '#10b981', bg: 'rgba(16, 185, 129, 0.1)', icon: false };
     };
-
-    // Sauvegarde automatique
-    useEffect(() => {
-        saveClients(clients);
-    }, [clients]);
-
-    const [viewMode, setViewMode] = useState('table'); // Default to 'table' (list) instead of 'cards'
-    const [editingClient, setEditingClient] = useState(null);
-    const fileInputRef = React.useRef(null);
 
     const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(val);
 
@@ -357,7 +99,7 @@ const ClientsPage = () => {
                 });
 
                 if (importedClients.length > 0) {
-                    setClients([...importedClients, ...clients]);
+                    importedClients.forEach(c => addClient(c));
                     alert(`${importedClients.length} clients importés avec succès !`);
                 } else {
                     alert("Aucune donnée valide trouvée dans le fichier CSV.");
@@ -375,12 +117,17 @@ const ClientsPage = () => {
         });
     };
 
-    const handleSaveClient = (newClient) => {
-        if (editingClient) {
-            setClients(clients.map(c => c.id === newClient.id ? newClient : c));
+    const handleSaveClient = async (newClient) => {
+        try {
+            if (editingClient) {
+                await updateClient(editingClient.id, newClient);
+            } else {
+                await addClient(newClient);
+            }
+            setIsClientModalOpen(false);
             setEditingClient(null);
-        } else {
-            setClients([newClient, ...clients]);
+        } catch (err) {
+            alert('Erreur lors de la sauvegarde : ' + err.message);
         }
     };
 
@@ -389,15 +136,8 @@ const ClientsPage = () => {
         setIsClientModalOpen(true);
     };
 
-    const handleDeleteClient = (id) => {
-        let allFactures = [];
-        try {
-            allFactures = getFactures();
-        } catch (e) {
-            console.error("Erreur lecture factures:", e);
-        }
-
-        const hasFactures = allFactures.some(f => f.clientId === id || f.client === clients.find(c => c.id === id)?.enseigne);
+    const handleDeleteClient = async (id) => {
+        const hasFactures = factures.some(f => f.clientId === id || f.client === clients.find(c => c.id === id)?.enseigne);
 
         if (hasFactures) {
             alert("❗ Opération refusée.\nCe client possède des factures liées. Veuillez plutôt l'archiver ou le passer en statut 'Inactif' pour ne pas corrompre l'intégrité de vos historiques financiers et Dashboard.");
@@ -405,12 +145,19 @@ const ClientsPage = () => {
         }
 
         if (window.confirm('Voulez-vous vraiment supprimer définitivement ce client ?')) {
-            setClients(clients.filter(c => c.id !== id));
+            try {
+                await deleteClient(id);
+            } catch (err) {
+                alert('Erreur lors de la suppression : ' + err.message);
+            }
         }
     };
 
-    const handleArchiveClient = (id) => {
-        setClients(clients.map(c => c.id === id ? { ...c, etatClient: 'Inactif' } : c));
+    const handleArchiveClient = async (id) => {
+        const client = clients.find(c => c.id === id);
+        if (client) {
+            await updateClient(id, { ...client, etatClient: 'Inactif' });
+        }
     };
 
     const getStatusStyle = (status) => {
@@ -579,25 +326,8 @@ const ClientsPage = () => {
                             ? parseFloat(client.montantMensuel || 0)
                             : parseFloat(client.montantTotal || 0);
 
-                        // 1. Get client identifier to match RH projects
-                        const clientIdentifier = client.enseigne + (client.projet ? ` - ${client.projet}` : '');
-
-                        // 2. Find synced RH costs
-                        const syncedRhCosts = rhList
-                            .filter(rh => rh.projet === clientIdentifier)
-                            .map(rh => {
-                                // Extract numeric value from "300 TND" or "300"
-                                const costNum = parseFloat(String(rh.part).replace(/[^0-9.]/g, '')) || 0;
-                                return {
-                                    id: `rh-${rh.id}`,
-                                    nom: `${rh.nom} (${rh.poste})`,
-                                    montant: costNum,
-                                    isAutoSynced: true
-                                };
-                            });
-
-                        // 3. Combine with manual costs
-                        const allCosts = [...(client.projectCosts || []), ...syncedRhCosts].filter(c => c.nom && c.montant);
+                        // Calculate total costs from projectCosts only (Single Source of Truth)
+                        const allCosts = (client.projectCosts || []).filter(c => c.nom && c.montant);
                         const combinedTotalCosts = allCosts.reduce((sum, c) => sum + (parseFloat(c.montant) || 0), 0);
                         const dynamicNetMargin = revenue - combinedTotalCosts;
 
@@ -874,6 +604,7 @@ const ClientsPage = () => {
                     onClose={() => { setIsClientModalOpen(false); setEditingClient(null); }}
                     onSave={handleSaveClient}
                     initialData={editingClient}
+                    allClients={clients}
                 />
             )}
         </div >

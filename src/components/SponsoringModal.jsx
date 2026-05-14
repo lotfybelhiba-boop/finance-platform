@@ -16,18 +16,12 @@ const emptySponsoring = {
 };
 
 const SponsoringModal = ({ isOpen, onClose, onSave, initialData }) => {
+    const { clients } = useData();
     const [formData, setFormData] = useState(emptySponsoring);
-    const [clientsList, setClientsList] = useState([]);
 
     useEffect(() => {
         if (isOpen) {
             setFormData(initialData ? { ...initialData } : { ...emptySponsoring, id: `SPONSOR-${Date.now()}` });
-
-            // Fetch clients for dropdown
-            const savedClients = getClients();
-            if (savedClients) {
-                setClientsList(savedClients.map(c => c.enseigne));
-            }
         }
     }, [isOpen, initialData]);
 
@@ -140,7 +134,7 @@ const SponsoringModal = ({ isOpen, onClose, onSave, initialData }) => {
                                 style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '12px', outline: 'none', cursor: 'pointer' }}
                             >
                                 <option value="" disabled>Sélectionner...</option>
-                                {clientsList.map((c, i) => <option key={i} value={c}>{c}</option>)}
+                                {clients.map((c, i) => <option key={c.id || i} value={c.enseigne}>{c.enseigne}</option>)}
                             </select>
                         </div>
                         <div>

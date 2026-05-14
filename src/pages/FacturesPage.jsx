@@ -7,12 +7,13 @@ import InvoiceStatusHistoryChart from '../components/InvoiceStatusHistoryChart';
 import { Search, Plus, Trash2, Edit, Send, Printer, History, ShieldCheck, Archive, Download, CheckCircle2, AlertCircle, Clock, Eye, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { getFactures, saveFactures, getClients, getStorage, setStorage } from '../services/storageService';
+import { useData } from '../context/DataContext';
+import { getStorage, setStorage } from '../services/storageService';
 import { calculatePendingInvoices, isInvoiceNonDeclare } from '../utils/billingUtils';
 
 const FacturesPage = () => {
     const navigate = useNavigate();
-    const [clients, setClients] = useState(() => getClients() || []);
+    const { clients, factures, addInvoice, updateInvoice, deleteInvoice, loading } = useData();
     const [filter, setFilter] = useState('all');
     const [declareFilter, setDeclareFilter] = useState('all');
     const [clientFilter, setClientFilter] = useState('all');
@@ -24,42 +25,12 @@ const FacturesPage = () => {
     const [showMatrix, setShowMatrix] = useState(false);
     const [previewFacture, setPreviewFacture] = useState(null);
     const [selectedFactures, setSelectedFactures] = useState([]);
-    const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'registry', 'audit'
+    const [activeTab, setActiveTab] = useState('overview'); 
     const [paymentModalInfo, setPaymentModalInfo] = useState(null);
+    const [companyBanks, setCompanyBanks] = useState(() => getStorage('mynds_company_banks', []));
+    const activeBanks = companyBanks.filter(b => b.actif);
     const [factureToEdit, setFactureToEdit] = useState(null);
     const [expandedGroups, setExpandedGroups] = useState({});
-    const [factures, setFactures] = useState(() => {
-        const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-        let parsed = getFactures();
-        if (parsed && parsed.length > 0) {
-            let modified = false;
-            const usedIds = new Set();
-            parsed = parsed.map((f) => {
-                // Migration : renommer les anciennes factures ND vers Client_Mois_Année
-                const isOldND = f.id && (f.id.startsWith('ND-') || f.id === 'non déclarée');
-                if (isOldND && f.client) {
-                    const dateRef = new Date(f.periodeDebut || f.dateEmi);
-                    if (!isNaN(dateRef.getTime())) {
-                        const baseName = `${f.client}_${monthNames[dateRef.getMonth()]}_${dateRef.getFullYear()}`;
-                        let newId = baseName;
-                        let counter = 2;
-                        while (usedIds.has(newId)) {
-                            newId = `${baseName}_${counter}`;
-                            counter++;
-                        }
-                        usedIds.add(newId);
-                        modified = true;
-                        return { ...f, id: newId };
-                    }
-                }
-                usedIds.add(f.id);
-                return f;
-            });
-            if (modified) saveFactures(parsed);
-            return parsed;
-        }
-        return [];
-    });
 
     const [ignoredAlerts, setIgnoredAlerts] = useState(() => getStorage('mynds_ignored_alerts', []));
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, id: null, message: '' });
@@ -100,25 +71,15 @@ const FacturesPage = () => {
     const [quickInvoiceClient, setQuickInvoiceClient] = useState(null);
     const [quickInvoiceTargetDate, setQuickInvoiceTargetDate] = useState(null);
 
-    useEffect(() => {
-        const syncData = () => {
-            const f = getFactures(); if (f) setFactures(f);
-            const c = getClients(); if (c) setClients(c);
-            const i = getStorage('mynds_ignored_alerts', []); setIgnoredAlerts(i);
-        };
-        window.addEventListener('storage', syncData);
-        return () => window.removeEventListener('storage', syncData);
-    }, []);
-
-    useEffect(() => { saveFactures(factures); }, [factures]);
-
-    const handlePaperToggle = (id) => {
-        setFactures(prev => prev.map(f => f.id === id ? { ...f, isPaper: !f.isPaper } : f));
+    const handlePaperToggle = async (id) => {
+        const fact = factures.find(f => f.id === id);
+        if (fact) {
+            await updateInvoice(id, { ...fact, isPaper: !fact.isPaper });
+        }
     };
 
     const handleEdit = (facture) => {
         if (facture.isTodo) {
-            // Auto-remplissage complet du formulaire pour les propositions
             setFactureToEdit(null);
             setQuickInvoiceClient(facture.clientId);
             setQuickInvoiceTargetDate({
@@ -134,25 +95,6 @@ const FacturesPage = () => {
 
     const handlePreview = (facture) => {
         setPreviewFacture(facture);
-    };
-
-    const handleSaveFacture = (nouvelleFacture) => {
-        setFactures(prev => {
-            // Si on est en mode édition, on remplace la facture originale (via son ancien ID)
-            if (factureToEdit) {
-                return prev.map(f => f.id === factureToEdit.id ? nouvelleFacture : f);
-            }
-            // Sinon (ajout d'une nouvelle ou proposition Todo emise), on evite les doublons
-            const existsIdx = prev.findIndex(f => f.id === nouvelleFacture.id);
-            if (existsIdx !== -1) {
-                return prev.map((f, i) => i === existsIdx ? nouvelleFacture : f);
-            }
-            return [nouvelleFacture, ...prev];
-        });
-        setIsModalOpen(false);
-        setFactureToEdit(null);
-        setQuickInvoiceClient(null);
-        setQuickInvoiceTargetDate(null);
     };
 
     const handleDelete = (id) => {
@@ -172,18 +114,54 @@ const FacturesPage = () => {
         setStorage('mynds_ignored_alerts', newIgnored);
     };
 
-    const executeConfirmAction = () => {
-        const { type, id } = confirmModal;
-        if (type === 'delete_single') setFactures(prev => prev.filter(f => f.id !== id));
-        else if (type === 'delete_mass') {
-            setFactures(prev => prev.filter(f => !selectedFactures.includes(f.id)));
-            setSelectedFactures([]);
+    const handleSaveFacture = async (nouvelleFacture) => {
+        try {
+            if (factureToEdit) {
+                await updateInvoice(factureToEdit.id, nouvelleFacture);
+            } else {
+                await addInvoice(nouvelleFacture);
+            }
+            setIsModalOpen(false);
+            setFactureToEdit(null);
+            setQuickInvoiceClient(null);
+            setQuickInvoiceTargetDate(null);
+        } catch (err) {
+            alert('Erreur lors de la sauvegarde : ' + err.message);
         }
-        setConfirmModal({ isOpen: false, type: null, id: null, message: '' });
     };
 
-    const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1 }).format(val);
-    const formatNumber = (val) => new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 1 }).format(val);
+    const executeConfirmAction = async () => {
+        const { type, id } = confirmModal;
+        try {
+            if (type === 'delete_single') {
+                await deleteInvoice(id);
+            } else if (type === 'delete_mass') {
+                for (const factId of selectedFactures) {
+                    await deleteInvoice(factId);
+                }
+                setSelectedFactures([]);
+            }
+            setConfirmModal({ isOpen: false, type: null, id: null, message: '' });
+        } catch (err) {
+            alert('Erreur lors de la suppression : ' + err.message);
+        }
+    };
+
+    const formatMoney = (amount) => {
+        if (amount === undefined || amount === null) return '0 DT';
+        const formatted = new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+        }).format(amount);
+        return `${formatted} DT`;
+    };
+
+    const formatNumber = (amount) => {
+        return new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+        }).format(amount);
+    };
 
     const filteredFactures = useMemo(() => {
         const all = [...todoFactures, ...factures];
@@ -313,7 +291,7 @@ const FacturesPage = () => {
                                 isNonDeclare: isInvoiceNonDeclare(facture, clients.find(c => c.id === facture.clientId || c.enseigne === facture.client))
                             });
                         } else {
-                            setFactures(prev => prev.map(f => f.id === facture.id ? {...f, statut: newStatus} : f));
+                            updateInvoice(facture.id, { ...facture, statut: newStatus });
                         }
                     }}
                     style={{ ...style, background: c.bg, color: c.text, appearance: 'none', paddingRight: '20px' }}
@@ -348,7 +326,7 @@ const FacturesPage = () => {
     }, [factures]);
 
     const enAttenteSum = factures.filter(f => f.statut === 'Sent' || f.statut === 'Late' || f.statut === 'Partially Paid' || f.statut === 'Paid (Unreconciled)').reduce((acc, f) => acc + (parseFloat(f.montant) - parseFloat(f.montantPaye || 0)), 0);
-    const recuSum = factures.filter(f => f.statut.includes('Paid')).reduce((acc, f) => acc + (parseFloat(f.montantPaye) || parseFloat(f.montant) || 0), 0);
+    const recuSum = factures.filter(f => f.statut?.includes('Paid')).reduce((acc, f) => acc + (parseFloat(f.montantPaye) || parseFloat(f.montant) || 0), 0);
     const retardCount = factures.filter(f => f.statut === 'Late').length;
 
     const monthLabels = ["Jan", "Fev", "Mar", "Avr", "Mai", "Juin", "Juil", "Aou", "Sep", "Oct", "Nov", "Dec"];
@@ -621,7 +599,7 @@ const FacturesPage = () => {
                                                             <tr key={f.id} className="registry-row" style={{ background: 'rgba(255, 193, 7, 0.04)' }}>
                                                                 <td style={{ padding: '6px 16px' }}>
                                                                     <div style={{ fontWeight: '700', fontSize: '11px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                        {f.client}
+                                                                        {f.clientName || f.client}
                                                                         <span style={{ fontSize: '8px', fontWeight: '900', padding: '2px 6px', borderRadius: '4px', background: f.alertStatus === 'urgent' ? 'rgba(220,38,38,0.08)' : 'rgba(245,158,11,0.08)', color: f.alertStatus === 'urgent' ? '#DC2626' : '#D97706', border: `1px dashed ${f.alertStatus === 'urgent' ? '#DC2626' : '#D97706'}` }}>
                                                                             {f.alertStatus === 'urgent' ? 'URGENT' : 'À FAIRE'}
                                                                         </span>
@@ -660,7 +638,7 @@ const FacturesPage = () => {
                                                     return (
                                                         <tr key={f.id} className="registry-row">
                                                             <td style={{ padding: '6px 16px' }}>
-                                                                <div style={{ fontWeight: '700', fontSize: '11px', color: 'var(--text-main)', marginBottom: '1px' }}>{f.client}</div>
+                                                                <div style={{ fontWeight: '700', fontSize: '11px', color: 'var(--text-main)', marginBottom: '1px' }}>{f.clientName || f.client}</div>
                                                                 <div style={{ fontSize: '10px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                     {f.id} 
                                                                     <span style={{ color: '#D1D5DB' }}>•</span>
@@ -886,11 +864,12 @@ const FacturesPage = () => {
                                 <label style={{ fontSize: '11px', fontWeight: '900', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Compte de destination</label>
                                 <select 
                                     id="confirm-payment-bank"
-                                    defaultValue={paymentModalInfo.isNonDeclare ? 'QNB' : 'BIAT'}
+                                    defaultValue={paymentModalInfo.isNonDeclare ? (activeBanks.find(b => !b.isDefault)?.bank_name || 'QNB') : (activeBanks.find(b => b.isDefault)?.bank_name || 'BIAT')}
                                     style={{ padding: '12px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '14px', fontWeight: '700' }}
                                 >
-                                    <option value="BIAT">🏦 BIAT (Déclaré)</option>
-                                    <option value="QNB">🔵 QNB (Perso/ND)</option>
+                                    {activeBanks.map(bank => (
+                                        <option key={bank.id} value={bank.bank_name}>🏦 {bank.bank_name}</option>
+                                    ))}
                                     <option value="Espèces">💰 Espèces (Cash)</option>
                                 </select>
                             </div>
@@ -904,15 +883,18 @@ const FacturesPage = () => {
                                 Annuler
                             </button>
                             <button 
-                                onClick={() => {
+                                onClick={async () => {
                                     const date = document.getElementById('confirm-payment-date').value;
                                     const bank = document.getElementById('confirm-payment-bank').value;
-                                    setFactures(prev => prev.map(f => f.id === paymentModalInfo.id ? {
-                                        ...f, 
-                                        statut: 'Paid', 
-                                        datePaiement: date, 
-                                        compteEncaissement: bank 
-                                    } : f));
+                                    const facture = factures.find(f => f.id === paymentModalInfo.id);
+                                    if (facture) {
+                                        await updateInvoice(facture.id, {
+                                            ...facture,
+                                            statut: paymentModalInfo.currentStatus || 'Paid', 
+                                            datePaiement: date, 
+                                            compteEncaissement: bank 
+                                        });
+                                    }
                                     setPaymentModalInfo(null);
                                 }} 
                                 style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: 'var(--text-main)', color: '#fff', fontWeight: '800', cursor: 'pointer' }}

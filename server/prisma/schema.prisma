@@ -192,6 +192,20 @@ model Quote {
   updatedAt          DateTime @updatedAt
 }
 
+model Employee {
+  id          String   @id
+  nom         String
+  poste       String?
+  taches      String?
+  actif       Boolean  @default(true)
+  dateDebut   String?
+  dateFin     String?
+  salaireBase Float?   @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Note {
   id        String   @id
   content   String

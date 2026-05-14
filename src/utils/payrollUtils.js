@@ -50,6 +50,12 @@ export const generatePendingSalaries = () => {
             const mYear = cursorDate.getFullYear();
             const mMonth = cursorDate.getMonth();
             
+            // Check if the employee's collaboration has ended before this month
+            if (emp.dateFin) {
+                const endDate = new Date(emp.dateFin);
+                const endMonthRef = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+                if (cursorDate > endMonthRef) break; // Stop generating after the end month
+            }
             // Signature to prevent duplicate generation (e.g. SALAIRE_id_10_2025)
             const payrollSignature = `SALAIRE_DYN_${emp.id}_${mMonth}_${mYear}`;
             const existingTx = bankTransactions.find(t => t.payrollSignature === payrollSignature);

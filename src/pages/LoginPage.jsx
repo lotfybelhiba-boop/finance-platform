@@ -7,28 +7,32 @@ const LoginPage = ({ onLogin }) => {
     const [error, setError] = useState('');
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         setError('');
         
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login', {
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+            const response = await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
             
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                setError(data.error || 'Identifiants incorrects.');
+                return;
+            }
+
             const data = await response.json();
-            
-            if (response.ok && data.success) {
+            if (data.success) {
                 localStorage.setItem('mynds_user', JSON.stringify(data.user));
-                localStorage.setItem('mynds_migrated_to_pg', 'true'); // Enable sync
                 onLogin();
             } else {
-                setError(data.error || 'Identifiants incorrects. Veuillez réessayer.');
+                setError(data.error || 'Identifiants incorrects.');
             }
         } catch (err) {
-            console.error('Login error:', err);
-            setError('Erreur de connexion au serveur.');
+            setError('Erreur de connexion au serveur PostgreSQL.');
         }
     };
 
@@ -159,7 +163,7 @@ const LoginPage = ({ onLogin }) => {
                     </button>
                     
                     <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: '500' }}>
-                        Accès sécurisé et restreint
+                        Accès sécurisé PostgreSQL
                     </div>
                 </form>
             </div>

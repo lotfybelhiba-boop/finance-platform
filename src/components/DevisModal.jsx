@@ -3,7 +3,10 @@ import { X, Plus, Trash2, FileDown } from 'lucide-react';
 import { generateDocumentPDF } from '../utils/pdfGenerator.jsx';
 import { loadConfig, initialServices } from '../data/defaultConfig';
 
+import { useData } from '../context/DataContext';
+
 const DevisModal = ({ isOpen, onClose, onSave }) => {
+    const { clients } = useData();
     const [client, setClient] = useState('');
     const [dateEmi, setDateEmi] = useState(new Date().toISOString().split('T')[0]);
     const [validite, setValidite] = useState('');
@@ -19,8 +22,6 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
     const [selectedServiceId, setSelectedServiceId] = useState('');
 
     const servicesList = useMemo(() => loadConfig('services', initialServices), []);
-
-    const clients = ['Future Corp', 'Green Energy', 'Tech Build', 'Local Shop'];
 
     const sousTotalHT = lignes.reduce((acc, ligne) => acc + (ligne.qte * ligne.prix), 0);
     const tva = applyTva ? sousTotalHT * 0.19 : 0;
@@ -51,22 +52,21 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
     const handleSubmit = React.useCallback((e) => {
         e.preventDefault();
         const timestampSuffix = Date.now().toString().slice(-3);
+        const selectedClientObj = clients.find(c => c.enseigne === client);
+        
         onSave({
             id: `DEV-${new Date().getFullYear()}-${(lignes.length + parseInt(timestampSuffix)).toString().padStart(3, '0')}`,
-            client,
-            montant: totalTTC,
-            date: dateEmi,
-            validite: validite || "N/A",
-            statut,
-            lignes,
-            sousTotalHT,
-            tva,
-            timbre,
-            notes,
-            conditions
+            clientId: selectedClientObj?.id || "N/A",
+            clientName: client,
+            dateEmi: dateEmi,
+            valideJusquau: validite || "N/A",
+            montant: parseFloat(totalTTC) || 0,
+            statut: statut,
+            lines: lignes,
+            notes: notes
         });
         onClose();
-    }, [client, conditions, dateEmi, lignes.length, notes, onClose, onSave, statut, timbre, tva, totalTTC, sousTotalHT, validite]);
+    }, [client, clients, dateEmi, lignes, notes, onClose, onSave, statut, totalTTC, sousTotalHT, validite]);
 
     const handleDownloadPDF = (e) => {
         e.preventDefault();
@@ -106,7 +106,7 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
                                 <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)' }}>Client *</label>
                                 <select required value={client} onChange={e => setClient(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--card-bg)', fontSize: '12px' }}>
                                     <option value="">Sélectionner un client</option>
-                                    {clients.map(c => <option key={c} value={c}>{c}</option>)}
+                                    {clients.map(c => <option key={c.id} value={c.enseigne}>{c.enseigne}</option>)}
                                 </select>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

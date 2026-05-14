@@ -1,5 +1,6 @@
 import React from 'react';
 import { numberToFrenchText } from '../utils/numberToLetters.js';
+import { getStorage } from '../services/storageService';
 
 /**
  * A4InvoiceDocument: Optimized for Luxe Minimalist Design & Strict A4 Fit.
@@ -12,14 +13,18 @@ const A4InvoiceDocument = ({ facture }) => {
 
     const isND = (facture.id === 'non déclarée' || (facture.id && facture.id.startsWith('ND-')));
 
+    const companyBanks = getStorage('mynds_company_banks', []);
+    const defaultBank = companyBanks.find(b => b.isDefault) || companyBanks[0];
+    const secondaryBank = companyBanks.find(b => !b.isDefault) || companyBanks[1] || defaultBank;
+
     const myndsInfo = {
         name: "Mynds Team",
         adresse: "136 Ave de la liberté, Tunis",
         telephone: "29 543 202",
         email: "contact@mynds-team.com",
         mf: "1782635/A/A/M/000",
-        rib: isND ? "2300 3200 3213 3900 0149" : "008 0006710083019 15",
-        banque: isND ? "QNB" : "BIAT"
+        rib: isND ? (secondaryBank?.account_number || "2300 3200 3213 3900 0149") : (defaultBank?.account_number || "008 0006710083019 15"),
+        banque: isND ? (secondaryBank?.bank_name || "QNB") : (defaultBank?.bank_name || "BIAT")
     };
 
     const client = {

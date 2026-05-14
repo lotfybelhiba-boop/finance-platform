@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, UserPlus, Save, Briefcase, Calendar, Percent, ListTodo, User } from 'lucide-react';
+import { X, UserPlus, Save, Briefcase, Calendar, Percent, ListTodo, User, CheckCircle2 } from 'lucide-react';
 
 const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
     const [formData, setFormData] = useState(() => {
@@ -11,6 +11,7 @@ const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
             nom: '',
             poste: '',
             dateDebut: new Date().toISOString().split('T')[0],
+            dateFin: '',
             taches: '',
             actif: true
         };
@@ -32,128 +33,122 @@ const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
     return (
         <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.75)',
-            backdropFilter: 'blur(8px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(12px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             zIndex: 1000, padding: '20px'
         }}>
             <div style={{
-                background: 'var(--card-bg)',
-                borderRadius: '24px',
+                background: 'rgba(255, 255, 255, 0.95)',
+                borderRadius: '20px',
                 width: '100%',
-                maxWidth: '650px',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                border: '1px solid var(--border-color)',
+                maxWidth: '550px',
+                boxShadow: '0 30px 60px -12px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0,0,0,0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
                 display: 'flex', flexDirection: 'column',
                 maxHeight: '90vh',
-                animation: 'slideUp 0.3s ease-out'
+                animation: 'modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                overflow: 'hidden'
             }}>
                 {/* HEADER */}
                 <div style={{
-                    padding: '24px 32px',
-                    borderBottom: '1px solid var(--border-color)',
+                    padding: '20px 28px',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    background: 'var(--bg-main)',
-                    borderTopLeftRadius: '24px', borderTopRightRadius: '24px'
+                    background: 'linear-gradient(to right, #f8fafc, #ffffff)',
+                    borderBottom: '1px solid #f1f5f9'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                         <div style={{
-                            width: '48px', height: '48px', borderRadius: '16px',
-                            background: 'rgba(255, 193, 5, 0.1)',
+                            width: '42px', height: '42px', borderRadius: '12px',
+                            background: 'var(--text-main)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: 'var(--accent-gold)'
+                            color: 'white',
+                            boxShadow: '0 8px 16px -4px rgba(0,0,0,0.1)'
                         }}>
-                            {initialData ? <Save size={24} /> : <UserPlus size={24} />}
+                            {initialData ? <Save size={20} /> : <UserPlus size={20} />}
                         </div>
                         <div>
-                            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: 'var(--text-main)' }}>
-                                {initialData ? 'Modifier Collaborateur' : 'Nouveau Collaborateur'}
+                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-0.5px' }}>
+                                {initialData ? 'Modifier Profil' : 'Nouveau Collaborateur'}
                             </h2>
-                            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                Renseignez les informations de la ressource humaine
+                            <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                                {initialData ? `Édition de ${initialData.nom}` : 'Ajouter un membre à l\'équipe Mynds'}
                             </p>
                         </div>
                     </div>
                     <button onClick={onClose} style={{
-                        background: 'transparent', border: 'none', cursor: 'pointer',
-                        color: 'var(--text-muted)', padding: '8px', borderRadius: '50%',
+                        background: '#f1f5f9', border: 'none', cursor: 'pointer',
+                        color: '#64748b', width: '32px', height: '32px', borderRadius: '10px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'background 0.2s'
-                    }} onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                        <X size={20} />
+                        transition: 'all 0.2s'
+                    }} onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }} onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}>
+                        <X size={18} />
                     </button>
                 </div>
 
                 {/* CONTENT */}
-                <div style={{ padding: '32px', overflowY: 'auto' }}>
-                    <form id="rh-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ padding: '28px', overflowY: 'auto' }}>
+                    <form id="rh-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-                        {/* ROW 1: Nom & Poste */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                            <div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                                    <User size={14} /> Nom & Prénom *
-                                </label>
+                        {/* Nom */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Nom Complet
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                                 <input
                                     required
                                     type="text"
                                     name="nom"
                                     value={formData.nom}
                                     onChange={handleChange}
-                                    placeholder="Ex: Ahmed Ben Ali"
+                                    placeholder="Ex: Jean Dupont"
                                     style={{
-                                        width: '100%', padding: '12px 16px', borderRadius: '12px',
-                                        border: '1px solid var(--border-color)', background: 'var(--bg-main)',
-                                        color: 'var(--text-main)', fontSize: '14px', outline: 'none',
-                                        transition: 'border-color 0.2s',
+                                        width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px',
+                                        border: '1px solid #e2e8f0', background: 'white',
+                                        color: '#1e293b', fontSize: '14px', fontWeight: '600', outline: 'none',
+                                        transition: 'all 0.2s',
                                         boxSizing: 'border-box'
                                     }}
+                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--text-main)'}
+                                    onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                                 />
                             </div>
-                            <div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                                    <Briefcase size={14} /> Poste / Rôle *
-                                </label>
+                        </div>
+
+                        {/* Poste */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Poste / Fonction
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <Briefcase size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                                 <input
                                     required
                                     type="text"
                                     name="poste"
                                     value={formData.poste}
                                     onChange={handleChange}
-                                    placeholder="Ex: UI/UX Designer"
+                                    placeholder="Ex: Consultant Senior"
                                     style={{
-                                        width: '100%', padding: '12px 16px', borderRadius: '12px',
-                                        border: '1px solid var(--border-color)', background: 'var(--bg-main)',
-                                        color: 'var(--text-main)', fontSize: '14px', outline: 'none',
-                                        transition: 'border-color 0.2s',
+                                        width: '100%', padding: '12px 12px 12px 40px', borderRadius: '10px',
+                                        border: '1px solid #e2e8f0', background: 'white',
+                                        color: '#1e293b', fontSize: '14px', fontWeight: '600', outline: 'none',
+                                        transition: 'all 0.2s',
                                         boxSizing: 'border-box'
                                     }}
+                                    onFocus={e => e.currentTarget.style.borderColor = 'var(--text-main)'}
+                                    onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
                                 />
                             </div>
                         </div>
 
-                        {/* ROW 2: Statut */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                                Statut (Génération de Paie)
-                            </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: 'var(--text-main)' }}>
-                                    <input type="radio" name="actif" value="true" checked={formData.actif === true} onChange={() => setFormData(prev => ({ ...prev, actif: true }))} />
-                                    Actif
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: 'var(--text-muted)' }}>
-                                    <input type="radio" name="actif" value="false" checked={formData.actif === false} onChange={() => setFormData(prev => ({ ...prev, actif: false }))} />
-                                    Inactif
-                                </label>
-                            </div>
-                        </div>
-
-                        {/* ROW 3: Date & Taches */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) 2fr', gap: '20px' }}>
-                            <div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                                    <Calendar size={14} /> Prise de Projet
+                        {/* Dates Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Début Collaboration
                                 </label>
                                 <input
                                     type="date"
@@ -161,32 +156,99 @@ const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
                                     value={formData.dateDebut}
                                     onChange={handleChange}
                                     style={{
-                                        width: '100%', padding: '12px 16px', borderRadius: '12px',
-                                        border: '1px solid var(--border-color)', background: 'var(--bg-main)',
-                                        color: 'var(--text-main)', fontSize: '14px', outline: 'none',
+                                        width: '100%', padding: '11px 12px', borderRadius: '10px',
+                                        border: '1px solid #e2e8f0', background: 'white',
+                                        color: '#1e293b', fontSize: '13px', fontWeight: '600', outline: 'none',
                                         boxSizing: 'border-box'
                                     }}
                                 />
                             </div>
-                            <div>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                                    <ListTodo size={14} /> Tâches assignées
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Fin Collaboration
                                 </label>
-                                <textarea
-                                    name="taches"
-                                    value={formData.taches}
+                                <input
+                                    type="date"
+                                    name="dateFin"
+                                    value={formData.dateFin || ''}
                                     onChange={handleChange}
-                                    placeholder="Décrivez les tâches spécifiques pour ce projet..."
-                                    rows={3}
                                     style={{
-                                        width: '100%', padding: '12px 16px', borderRadius: '12px',
-                                        border: '1px solid var(--border-color)', background: 'var(--bg-main)',
-                                        color: 'var(--text-main)', fontSize: '14px', outline: 'none',
-                                        resize: 'vertical', minHeight: '80px', fontFamily: 'inherit',
+                                        width: '100%', padding: '11px 12px', borderRadius: '10px',
+                                        border: '1px solid #e2e8f0', background: 'white',
+                                        color: formData.dateFin ? '#ef4444' : '#1e293b', fontSize: '13px', fontWeight: '600', outline: 'none',
                                         boxSizing: 'border-box'
                                     }}
                                 />
                             </div>
+                        </div>
+
+                        {/* Statut Toggle */}
+                        <div style={{ 
+                            background: '#f8fafc', 
+                            padding: '16px', 
+                            borderRadius: '12px', 
+                            border: '1px solid #f1f5f9',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div>
+                                <div style={{ fontSize: '13px', fontWeight: '800', color: '#1e293b' }}>Statut de l'employé</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>Définit si la paie est générée ce mois-ci</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px', background: '#e2e8f0', padding: '3px', borderRadius: '10px' }}>
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, actif: true }))}
+                                    style={{ 
+                                        padding: '6px 16px', borderRadius: '8px', border: 'none',
+                                        fontSize: '11px', fontWeight: '900', cursor: 'pointer',
+                                        background: formData.actif ? 'white' : 'transparent',
+                                        color: formData.actif ? '#10b981' : '#64748b',
+                                        boxShadow: formData.actif ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    ACTIF
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, actif: false }))}
+                                    style={{ 
+                                        padding: '6px 16px', borderRadius: '8px', border: 'none',
+                                        fontSize: '11px', fontWeight: '900', cursor: 'pointer',
+                                        background: !formData.actif ? 'white' : 'transparent',
+                                        color: !formData.actif ? '#ef4444' : '#64748b',
+                                        boxShadow: !formData.actif ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    INACTIF
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Taches */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                Missions & Tâches
+                            </label>
+                            <textarea
+                                name="taches"
+                                value={formData.taches}
+                                onChange={handleChange}
+                                placeholder="Détails des missions assignées..."
+                                rows={2}
+                                style={{
+                                    width: '100%', padding: '12px', borderRadius: '10px',
+                                    border: '1px solid #e2e8f0', background: 'white',
+                                    color: '#1e293b', fontSize: '13px', fontWeight: '600', outline: 'none',
+                                    resize: 'none', minHeight: '60px', fontFamily: 'inherit',
+                                    boxSizing: 'border-box'
+                                }}
+                                onFocus={e => e.currentTarget.style.borderColor = 'var(--text-main)'}
+                                onBlur={e => e.currentTarget.style.borderColor = '#e2e8f0'}
+                            />
                         </div>
 
                     </form>
@@ -194,21 +256,22 @@ const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
 
                 {/* FOOTER */}
                 <div style={{
-                    padding: '24px 32px',
-                    borderTop: '1px solid var(--border-color)',
-                    background: 'var(--bg-main)',
-                    borderBottomLeftRadius: '24px', borderBottomRightRadius: '24px',
-                    display: 'flex', justifyContent: 'flex-end', gap: '16px'
+                    padding: '20px 28px',
+                    background: '#f8fafc',
+                    borderTop: '1px solid #f1f5f9',
+                    display: 'flex', justifyContent: 'flex-end', gap: '12px'
                 }}>
                     <button
                         type="button"
                         onClick={onClose}
                         style={{
-                            padding: '12px 24px', borderRadius: '12px',
-                            background: 'transparent', border: '1px solid var(--border-color)',
-                            color: 'var(--text-main)', fontWeight: '600', cursor: 'pointer',
-                            transition: 'all 0.2s'
+                            padding: '10px 20px', borderRadius: '10px',
+                            background: 'white', border: '1px solid #e2e8f0',
+                            color: '#64748b', fontWeight: '700', cursor: 'pointer',
+                            fontSize: '13px', transition: 'all 0.2s'
                         }}
+                        onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                        onMouseOut={e => e.currentTarget.style.background = 'white'}
                     >
                         Annuler
                     </button>
@@ -216,25 +279,26 @@ const RHFormModal = ({ isOpen, onClose, onSave, initialData }) => {
                         form="rh-form"
                         type="submit"
                         style={{
-                            padding: '12px 32px', borderRadius: '12px',
+                            padding: '10px 24px', borderRadius: '10px',
                             background: 'var(--text-main)', border: 'none',
-                            color: 'white', fontWeight: '700', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                            transition: 'transform 0.2s'
+                            color: 'white', fontWeight: '800', cursor: 'pointer',
+                            fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
+                            boxShadow: '0 10px 20px -5px rgba(0,0,0,0.2)',
+                            transition: 'all 0.2s'
                         }}
-                        onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                        onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                        onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 15px 30px -5px rgba(0,0,0,0.3)'; }}
+                        onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0,0,0,0.2)'; }}
                     >
-                        {initialData ? 'Mettre à jour' : 'Ajouter au catalogue'}
+                        <CheckCircle2 size={16} />
+                        {initialData ? 'Enregistrer les modifications' : 'Confirmer l\'ajout'}
                     </button>
                 </div>
             </div>
             <style>
                 {`
-                    @keyframes slideUp {
-                        from { opacity: 0; transform: translateY(20px); }
-                        to { opacity: 1; transform: translateY(0); }
+                    @keyframes modalSlideUp {
+                        from { opacity: 0; transform: translateY(30px) scale(0.98); }
+                        to { opacity: 1; transform: translateY(0) scale(1); }
                     }
                 `}
             </style>

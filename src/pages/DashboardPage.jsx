@@ -10,39 +10,30 @@ import CashflowForecastChart from '../components/CashflowForecastChart';
 import EmployeeWorkloadChart from '../components/EmployeeWorkloadChart';
 import ScrollingBanner from '../components/ScrollingBanner';
 import UpcomingDeadlinesCard from '../components/UpcomingDeadlinesCard';
-import { getBankTransactions, getFactures, getClients, getStorage } from '../services/storageService';
+import { useData } from '../context/DataContext';
+import { getStorage } from '../services/storageService';
 import { FileText, Users, CreditCard, Activity, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Wallet, Percent, DollarSign, Briefcase, RefreshCw, Zap } from 'lucide-react';
 import { isInvoiceNonDeclare } from '../utils/billingUtils';
 
 const DashboardPage = () => {
-    const [manualTransactions, setManualTransactions] = React.useState([]);
-    const [factures, setFactures] = React.useState([]);
-    const [clients, setClients] = React.useState([]);
-    const [employeeCount, setEmployeeCount] = React.useState(0);
+    const { clients = [], factures = [], bankTransactions: manualTransactions = [], employees = [], loading } = useData();
+    const [companyBanks, setCompanyBanks] = React.useState([]);
+    const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth());
+    const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
 
     React.useEffect(() => {
-        const loadDashboardData = () => {
-            setManualTransactions(getBankTransactions() || []);
-            setFactures(getFactures() || []);
-            setClients(getClients() || []);
-            
-            // Recompute real headcount from HR module (fallback to counting unique active members)
-            const rhTeam = getStorage('mynds_rh', []);
-            if (rhTeam && rhTeam.length > 0) {
-                setEmployeeCount(rhTeam.length);
-            } else {
-                setEmployeeCount(0); // Optional: we could compute from projectCosts but rhTeam is truth
-            }
-        };
-
-        loadDashboardData();
-        window.addEventListener('storage', loadDashboardData);
-        window.addEventListener('mynds_data_updated', loadDashboardData);
-        return () => {
-            window.removeEventListener('storage', loadDashboardData);
-            window.removeEventListener('mynds_data_updated', loadDashboardData);
-        };
+        const banks = getStorage('mynds_company_banks', [
+            { id: '1', bank_name: 'BIAT', swift_bic: 'BIATTNTN', account_number: '08000000000000000000', currency: 'TND', isDefault: true, actif: true },
+            { id: '2', bank_name: 'QNB', swift_bic: 'QNBTNTN', account_number: '12000000000000000000', currency: 'TND', isDefault: false, actif: true }
+        ]);
+        setCompanyBanks(banks);
     }, []);
+
+    if (loading) {
+        return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--text-muted)' }}>Chargement du tableau de bord...</div>;
+    }
+
+    const employeeCount = employees?.length || 0;
 
     const formatMoney = (amount) => {
         return new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(amount);
@@ -75,13 +66,14 @@ const DashboardPage = () => {
 
     const allTransactions = [...manualTransactions, ...autoTransactions];
 
-    const balanceBIAT = allTransactions
-        .filter(t => t.bank === 'BIAT')
-        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
-
-    const balanceQNB = allTransactions
-        .filter(t => t.bank === 'QNB')
-        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+    const activeBanks = companyBanks.filter(b => b.actif);
+    
+    const bankBalances = activeBanks.reduce((acc, b) => {
+        acc[b.bank_name] = allTransactions
+            .filter(t => t.bank === b.bank_name)
+            .reduce((total, curr) => total + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+        return acc;
+    }, {});
 
     const balanceEspeces = allTransactions
         .filter(t => t.bank === 'Espèces')
@@ -92,18 +84,16 @@ const DashboardPage = () => {
         .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0)
         - (getStorage('mynds_sponsoring', []) || []).reduce((acc, curr) => acc + (parseFloat(curr.montantTNDBanque) || 0), 0);
 
-    const totalBankBalance = balanceBIAT + balanceQNB + balanceEspeces;
+    const totalBankBalance = Object.values(bankBalances).reduce((a, b) => a + b, 0) + balanceEspeces;
 
     // --- Global Operations Metrics ---
     // Total Clients Actifs
     const activeClients = clients.filter(c => c.etatClient === 'Actif');
     
     // Breakdown Abonnements vs One-Shot
-    const abonnementCount = activeClients.filter(c => c.regime === 'Abonnement').length;
-    const oneShotCount = activeClients.filter(c => c.regime === 'One-Shot').length;
+    const abonnementCount = activeClients?.filter(c => c.regime === 'Abonnement').length || 0;
+    const oneShotCount = activeClients?.filter(c => c.regime === 'One-Shot').length || 0;
 
-    const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth());
-    const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
 
     return (
         <div>
@@ -156,25 +146,20 @@ const DashboardPage = () => {
                             <div style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.5px' }}>{formatMoney(totalBankBalance)}</div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '24px', borderLeft: '1px dashed rgba(255,255,255,0.15)', paddingLeft: '24px' }}>
-                            <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6' }}></div>
-                                    <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>BIAT (Société)</div>
+                        <div style={{ display: 'flex', gap: '24px', borderLeft: '1px dashed rgba(255,255,255,0.15)', paddingLeft: '24px', flex: 1, overflowX: 'auto', paddingBottom: '4px' }}>
+                            {activeBanks.map((bank, idx) => (
+                                <div key={bank.id}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: idx === 0 ? '#3b82f6' : (idx === 1 ? '#ef4444' : '#10b981') }}></div>
+                                        <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>{bank.bank_name}</div>
+                                    </div>
+                                    <div style={{ fontSize: '16px', fontWeight: '800', color: idx === 0 ? '#93c5fd' : (idx === 1 ? '#fca5a5' : '#6ee7b7') }}>{formatMoney(bankBalances[bank.bank_name] || 0)}</div>
                                 </div>
-                                <div style={{ fontSize: '16px', fontWeight: '800', color: '#93c5fd' }}>{formatMoney(balanceBIAT)}</div>
-                            </div>
-                            <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444' }}></div>
-                                    <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>QNB (Perso)</div>
-                                </div>
-                                <div style={{ fontSize: '16px', fontWeight: '800', color: '#fca5a5' }}>{formatMoney(balanceQNB)}</div>
-                            </div>
+                            ))}
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
                                     <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></div>
-                                    <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Cash (Espèces)</div>
+                                    <div style={{ fontSize: '9px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>Cash</div>
                                 </div>
                                 <div style={{ fontSize: '16px', fontWeight: '800', color: '#6ee7b7' }}>{formatMoney(balanceEspeces)}</div>
                             </div>
@@ -202,7 +187,7 @@ const DashboardPage = () => {
                             <div>
                                 <div style={{ fontSize: '10px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Clients Actifs</div>
                                 <div style={{ fontSize: '18px', fontWeight: '900', color: 'var(--text-main)', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                                    {activeClients.length}
+                                    {activeClients?.length || 0}
                                 </div>
                             </div>
                         </div>

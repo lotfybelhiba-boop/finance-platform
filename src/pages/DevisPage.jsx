@@ -1,21 +1,27 @@
 import React, { useState } from 'react';
 import Header from '../components/Header';
+import { useData } from '../context/DataContext';
 import DevisModal from '../components/DevisModal';
 import { Search, Plus } from 'lucide-react';
 
 const DevisPage = () => {
+    const { quotes: devisList, addQuote, updateQuote, deleteQuote, loading } = useData();
     const [filter, setFilter] = useState('all');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingDevis, setEditingDevis] = useState(null);
 
-    const [devisList, setDevisList] = useState([
-        { id: 'DEV-2026-001', client: 'Future Corp', montant: 8500, date: '2026-09-12', validite: '2026-10-12', statut: 'Sent' },
-        { id: 'DEV-2026-002', client: 'Green Energy', montant: 3200, date: '2026-09-14', validite: '2026-10-14', statut: 'Accepted' },
-        { id: 'DEV-2026-003', client: 'Tech Build', montant: 4500, date: '2026-09-01', validite: '2026-10-01', statut: 'Rejected' },
-        { id: 'DEV-2026-004', client: 'Local Shop', montant: 1200, date: '2026-09-18', validite: '2026-10-18', statut: 'Draft' },
-    ]);
-
-    const handleSaveDevis = (nouveauDevis) => {
-        setDevisList([nouveauDevis, ...devisList]);
+    const handleSaveDevis = async (nouveauDevis) => {
+        try {
+            if (editingDevis) {
+                await updateQuote(editingDevis.id, nouveauDevis);
+            } else {
+                await addQuote(nouveauDevis);
+            }
+            setIsModalOpen(false);
+            setEditingDevis(null);
+        } catch (err) {
+            alert('Erreur lors de la sauvegarde : ' + err.message);
+        }
     };
 
     const formatMoney = (val) => new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(val);
@@ -90,12 +96,12 @@ const DevisPage = () => {
                         {filteredDevis.map((d) => (
                             <tr key={d.id} style={{ borderBottom: '1px solid var(--border-color)', fontSize: '14px', transition: 'all 0.2s ease' }} onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.5)' }} onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}>
                                 <td style={{ padding: '16px 24px' }}>
-                                    <div style={{ fontWeight: '600', color: 'var(--text-main)', marginBottom: '4px' }}>{d.client}</div>
+                                    <div style={{ fontWeight: '600', color: 'var(--text-main)', marginBottom: '4px' }}>{d.clientName}</div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{d.id}</div>
                                 </td>
                                 <td style={{ padding: '16px 24px', textAlign: 'right', fontWeight: '700', color: 'var(--text-main)' }}>{formatNumber(d.montant)}</td>
-                                <td style={{ padding: '16px 24px', color: 'var(--text-muted)' }}>{d.date}</td>
-                                <td style={{ padding: '16px 24px', color: 'var(--text-muted)' }}>{d.validite}</td>
+                                <td style={{ padding: '16px 24px', color: 'var(--text-muted)' }}>{d.dateEmi}</td>
+                                <td style={{ padding: '16px 24px', color: 'var(--text-muted)' }}>{d.valideJusquau}</td>
                                 <td style={{ padding: '16px 24px', textAlign: 'center' }}>{getStatusBadge(d.statut)}</td>
                                 <td style={{ padding: '16px 24px', textAlign: 'right' }}>
                                     <button style={{ background: 'transparent', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', color: 'var(--text-main)' }}>Voir</button>

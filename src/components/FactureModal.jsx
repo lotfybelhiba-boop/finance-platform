@@ -2,9 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, FileDown, Wand2 } from 'lucide-react';
 import { generateDocumentPDF } from '../utils/pdfGenerator.jsx';
 import { loadConfig, initialServices } from '../data/defaultConfig';
-import { getClients, getFactures } from '../services/storageService';
+import { useData } from '../context/DataContext';
+import { getStorage } from '../services/storageService';
 
-const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, targetDate, clientsList }) => {
+const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, targetDate }) => {
+    const { clients: clientsList, factures: allFactures } = useData();
     const pad = (n) => n.toString().padStart(2, '0');
     const servicesList = useMemo(() => loadConfig('services', initialServices), []);
 
@@ -233,6 +235,16 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, ta
     const [compteEncaissement, setCompteEncaissement] = useState(factureToEdit?.compteEncaissement || 'BIAT');
     const [datePaiement, setDatePaiement] = useState(factureToEdit?.datePaiement || new Date().toISOString().split('T')[0]);
 
+    const companyBanks = getStorage('mynds_company_banks', []);
+    const activeBanks = companyBanks.filter(b => b.actif);
+    const defaultBank = activeBanks.find(b => b.isDefault)?.bank_name || 'BIAT';
+
+    useEffect(() => {
+        if (isOpen && !factureToEdit && !compteEncaissement) {
+             setCompteEncaissement(defaultBank);
+        }
+    }, [isOpen, factureToEdit, defaultBank]);
+
     // NEW LOGIC: Auto-fill dates based on Client & Selected Month
     // NEW LOGIC: Auto-fill dates based on Selected Month (and Client if applicable)
     useEffect(() => {
@@ -368,12 +380,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, ta
     // Calculate numbering when modal opens or client changes
     useEffect(() => {
         if (isOpen) {
-            let allFactures = [];
-            try {
-                allFactures = getFactures();
-            } catch {
-                // Ignore parsing errors
-            }
+            // allFactures is already in scope from useData()
 
             const selectedClientObj = clientsList.find(c => c.id === client);
             const isSousTVA = selectedClientObj ? selectedClientObj.sousTVA : true;
@@ -591,7 +598,7 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, ta
         const clientName = currentClientObj ? currentClientObj.enseigne : 'Client Inconnu';
 
         // 1. DUPLICATE PERIOD CHECK
-        const allFactures = getFactures();
+        // allFactures is already in scope from useData()
         const duplicatePeriod = allFactures.find(f => 
             f.clientId === client && 
             f.periodeDebut === periodeDebut && 
@@ -616,26 +623,32 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, ta
             ...(factureToEdit || {}), 
             id: numeroGlobal,
             clientId: client,
-            client: clientName,
+            clientName: clientName,
             clientMF: currentClientObj?.mf || '',
             clientAdresse: currentClientObj?.adresse || '',
-            montant: totalTTC,
+            totalTTC: String(totalTTC),
+            montant: String(totalTTC),
             dateEmi,
             echeance: echeance || "N/A",
             periodeDebut,
             periodeFin,
             statut,
-            lignes,
-            sousTotalHT,
-            tva,
-            timbre,
+            lignes: lignes.map(({ id, ...l }) => ({ 
+                ...l, 
+                qte: parseInt(l.qte, 10), 
+                prix: parseFloat(l.prix),
+                total: parseFloat(l.qte * l.prix),
+                montant: String(l.qte * l.prix)
+            })),
+            sousTotalHT: String(sousTotalHT),
+            tva: String(tva),
+            timbre: String(timbre),
             isExonore,
             notes,
             conditions,
             isExtra,
-            coutExtra: isExtra ? coutExtra : 0,
+            coutExtra: isExtra ? (parseFloat(coutExtra) || 0) : 0,
             ressourceExtra: isExtra ? ressourceExtra : '',
-            manualId: isIdManual,
             datePaiement: statut === 'Paid' ? datePaiement : null,
             compteEncaissement: compteEncaissement
         };
@@ -990,8 +1003,9 @@ const FactureModal = ({ isOpen, onClose, onSave, factureToEdit, targetClient, ta
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                             <label style={{ fontSize: '10px', fontWeight: '700', color: 'var(--success)' }}>🏦 COMPTE BANCAIRE</label>
                                             <select value={compteEncaissement} onChange={e => setCompteEncaissement(e.target.value)} style={{ padding: '6px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.3)', fontSize: '11px', fontWeight: '600' }}>
-                                                <option value="BIAT">BIAT (Déclaré)</option>
-                                                <option value="QNB">QNB (Perso/ND)</option>
+                                                {activeBanks.map(bank => (
+                                                    <option key={bank.id} value={bank.bank_name}>{bank.bank_name}</option>
+                                                ))}
                                                 <option value="Espèces">Espèces (Cash)</option>
                                             </select>
                                         </div>

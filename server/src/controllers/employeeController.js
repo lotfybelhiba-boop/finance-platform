@@ -2,10 +2,10 @@ import prisma from '../services/prisma.js';
 
 export const getAll = async (req, res) => {
   try {
-    const transactions = await prisma.bankTransaction.findMany({
-      orderBy: { date: 'desc' }
+    const employees = await prisma.employee.findMany({
+      orderBy: { nom: 'asc' }
     });
-    res.json(transactions);
+    res.json(employees);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -13,33 +13,31 @@ export const getAll = async (req, res) => {
 
 export const create = async (req, res) => {
   try {
-    const transaction = await prisma.bankTransaction.create({
+    const employee = await prisma.employee.create({
       data: req.body
     });
-    res.status(201).json(transaction);
+    res.status(201).json(employee);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 };
 
 export const update = async (req, res) => {
-  const { id } = req.params;
   try {
-    const transaction = await prisma.bankTransaction.update({
-      where: { id: parseInt(id, 10) },
+    const employee = await prisma.employee.update({
+      where: { id: req.params.id },
       data: req.body
     });
-    res.json(transaction);
+    res.json(employee);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 };
 
 export const remove = async (req, res) => {
-  const { id } = req.params;
   try {
-    await prisma.bankTransaction.delete({ 
-      where: { id: parseInt(id, 10) } 
+    await prisma.employee.delete({
+      where: { id: req.params.id }
     });
     res.status(204).send();
   } catch (error) {

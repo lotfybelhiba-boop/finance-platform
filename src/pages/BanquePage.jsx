@@ -1,31 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import { Search, Plus, Trash2, Filter, ArrowUpRight, ArrowDownLeft, Landmark, Wallet, MoreHorizontal, Calculator, Lock, Bot, Check, EyeOff, Calendar, Banknote, Users, FileSpreadsheet, CreditCard, ShieldCheck, RotateCcw } from 'lucide-react';
-import { getBankTransactions, saveBankTransactions, getFactures, getClients, getStorage, setStorage } from '../services/storageService';
+import { useData } from '../context/DataContext';
+import { getStorage, setStorage } from '../services/storageService';
 import { isInvoiceNonDeclare } from '../utils/billingUtils';
 import { generatePendingPersoCharges, PERSO_CATEGORIES } from '../utils/persoUtils';
 import ImportChargesModal from '../components/ImportChargesModal';
 import BankReconciliationTab from '../components/BankReconciliationTab';
 
 const BanquePage = () => {
-    // Manual transactions
-    const [manualTransactions, setManualTransactions] = useState(() => {
-        const saved = getBankTransactions();
-        return (saved && saved.length > 0) ? saved : [
-            { id: 1, date: '2026-03-08', desc: 'Loyer Bureau', bank: 'BIAT', type: 'Debit', amount: 850, category: 'Charges', chargeType: 'Exploitations', chargeNature: 'Fixes', serviceMonth: '2026-03', paymentDate: '2026-03-08' },
-            { id: 2, date: '2026-03-05', desc: 'Retrait Personnel', bank: 'QNB', type: 'Debit', amount: 500, category: 'Perso', serviceMonth: '2026-03', paymentDate: '2026-03-05' }
-        ];
-    });
+    const { 
+        clients, 
+        factures, 
+        bankTransactions: manualTransactions, 
+        addBankTransaction, 
+        updateBankTransaction, 
+        deleteBankTransaction,
+        loading 
+    } = useData();
 
-    // Invoices loaded from local storage
-    const [factures, setFactures] = useState(() => getFactures());
+    const activeClients = (clients || []).filter(c => c.etatClient === 'Actif');
 
-    // Clients loaded from local storage for automated salaries
-    const [clients, setClients] = useState(() => getClients());
-    const activeClients = clients.filter(c => c.etatClient === 'Actif');
-
-    // Sponsoring loaded from local storage
+    // Sponsoring loaded from local storage (remaining UI pref)
     const [sponsoringList, setSponsoringList] = useState(() => getStorage('mynds_sponsoring', []));
+    
+    // Company Banks loaded from config
+    const [companyBanks, setCompanyBanks] = useState(() => {
+        return getStorage('mynds_company_banks', [
+            { id: '1', bank_name: 'BIAT', swift_bic: 'BIATTNTN', account_number: '08000000000000000000', currency: 'TND', isDefault: true, actif: true },
+            { id: '2', bank_name: 'QNB', swift_bic: 'QNBTNTN', account_number: '12000000000000000000', currency: 'TND', isDefault: false, actif: true }
+        ]);
+    });
+    const activeBanks = companyBanks.filter(b => b.actif);
 
 
     const [selectedBank, setSelectedBank] = useState('all');
@@ -37,16 +43,22 @@ const BanquePage = () => {
     const [isTVAModalOpen, setIsTVAModalOpen] = useState(false);
     const [editingTVA, setEditingTVA] = useState(null);
 
-    const [activeTab, setActiveTab] = useState('Entrées'); // 'Entrées', 'Charges Mynds', 'Charges RH', 'Charges CT', 'Charges TVA', 'TVA', 'Rapprochement'
+    const [activeTab, setActiveTab] = useState('Entrées'); // 'Entrées', 'Charges Mynds', 'Charges CT', 'Charges TVA', 'TVA', 'Rapprochement'
 
     // Filters for Entrées
     const [entreesMonthFilter, setEntreesMonthFilter] = useState('all');
     const [entreesClientFilter, setEntreesClientFilter] = useState('all');
 
+    // Missing Filters for RH & Charges
+    const [rhClientFilter, setRhClientFilter] = useState('all');
+    const [chargeTypeFilter, setChargeTypeFilter] = useState('all');
+    const [isGroupedByRH, setIsGroupedByRH] = useState(true);
+    const [confirmResetId, setConfirmResetId] = useState(null);
+
     // Filters for Charges Mynds & RH
     const [selectedMonthFilter, setSelectedMonthFilter] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
     
-    const [chargeTypeFilter, setChargeTypeFilter] = useState('all'); // 'all', 'RH'
+
 
     // Separate filters derived from selectedMonthFilter
     // Separate filters derived from selectedMonthFilter
@@ -64,9 +76,7 @@ const BanquePage = () => {
         setSelectedMonthFilter(`${parts[0]}-${month}`);
     };
 
-    const [isGroupedByRH, setIsGroupedByRH] = useState(false);
-    const [confirmResetId, setConfirmResetId] = useState(null);
-    const [rhClientFilter, setRhClientFilter] = useState('all');
+
 
     // TVA Transactions
     const [tvaTransactions, setTvaTransactions] = useState(() => getStorage('mynds_tva_achats', []));
@@ -75,39 +85,34 @@ const BanquePage = () => {
     const [ignoredTxs, setIgnoredTxs] = useState(() => getStorage('mynds_ignored_transactions', []));
     const [showHistory, setShowHistory] = useState(false);
 
-    // Écouteur de synchronisation multi-onglets
-    useEffect(() => {
-        const syncData = () => {
-            const savedTx = getBankTransactions();
-            if (savedTx) setManualTransactions(savedTx);
-            setFactures(getFactures() || []);
-            setClients(getClients() || []);
-            setSponsoringList(getStorage('mynds_sponsoring', []));
-            setTvaTransactions(getStorage('mynds_tva_achats', []));
-            setIgnoredTxs(getStorage('mynds_ignored_transactions', []));
-        };
-        window.addEventListener('storage', syncData);
-        return () => window.removeEventListener('storage', syncData);
-    }, []);
+    const handleSave = async (t) => {
+        if (parseFloat(t.amount) < 0) {
+            alert("❗ Opération refusée. Le montant d'une transaction ne peut pas être négatif.");
+            return;
+        }
 
-    useEffect(() => {
-        setStorage('mynds_ignored_transactions', ignoredTxs);
-    }, [ignoredTxs]);
+        try {
+            if (editingTransaction && editingTransaction.id !== undefined && !editingTransaction.isAuto) {
+                await updateBankTransaction(editingTransaction.id, t);
+            } else {
+                await addBankTransaction(t);
+            }
+            setIsModalOpen(false);
+            setEditingTransaction(null);
+        } catch (err) {
+            alert('Erreur lors de la sauvegarde : ' + err.message);
+        }
+    };
 
-    // Automations (Salaries + Perso)
-    useEffect(() => {
-        // En supposant que generatePendingSalaries est globalement disponible ou importé si besoin
-        // Ici on se concentre sur Perso
-        generatePendingPersoCharges();
-    }, []);
-
-    useEffect(() => {
-        saveBankTransactions(manualTransactions);
-    }, [manualTransactions]);
-
-    useEffect(() => {
-        setStorage('mynds_tva_achats', tvaTransactions);
-    }, [tvaTransactions]);
+    const handleDelete = async (id) => {
+        if (window.confirm("Voulez-vous supprimer définitivement cette transaction ?")) {
+            try {
+                await deleteBankTransaction(id);
+            } catch (err) {
+                alert('Erreur lors de la suppression : ' + err.message);
+            }
+        }
+    };
 
     // Compute automated transactions from paid invoices
     const autoTransactions = factures
@@ -124,7 +129,7 @@ const BanquePage = () => {
                 id: `auto-${f.id}`,
                 date: f.dateEmi, // We keep date as original record date for sorting
                 desc: `Facture ${f.clientName || f.client}`,
-                bank: f.compteEncaissement || (isNonDeclare ? 'QNB' : 'BIAT'),
+                bank: f.compteEncaissement || (isNonDeclare ? (activeBanks.find(b => b.bank_name.toLowerCase().includes('qnb'))?.bank_name || 'QNB') : (activeBanks.find(b => b.bank_name.toLowerCase().includes('biat'))?.bank_name || 'BIAT')),
                 type: 'Credit',
                 amount: parseFloat(f.montant) || 0,
                 category: 'Facture',
@@ -141,7 +146,7 @@ const BanquePage = () => {
                     id: `auto-extra-${f.id}`,
                     date: f.dateEmi,
                     desc: `Coût Auto Mission Extra (${f.ressourceExtra || 'Externe'}) - Facture ${f.id}`,
-                    bank: f.compteEncaissement || (isNonDeclare ? 'QNB' : 'BIAT'),
+                    bank: f.compteEncaissement || (isNonDeclare ? (activeBanks.find(b => b.bank_name.toLowerCase().includes('qnb'))?.bank_name || 'QNB') : (activeBanks.find(b => b.bank_name.toLowerCase().includes('biat'))?.bank_name || 'BIAT')),
                     type: 'Debit',
                     amount: parseFloat(f.coutExtra) || 0,
                     category: 'Charges',
@@ -205,11 +210,36 @@ const BanquePage = () => {
         }
     });
 
-    // Combine manual, auto invoices, auto sponsoring
-    const allTransactions = [...manualTransactions, ...autoTransactions, ...autoSponsoring].map(t => ({
-        ...t,
-        isIgnored: ignoredTxs.some(ignored => ignored.id === t.id)
-    }));
+    // 1. Combine manual, auto invoices, auto sponsoring
+    // Logic: Deduplicate autoTransactions if a manual one exists with same amount/client in the same month
+    const allTransactions = useMemo(() => {
+        const deduplicatedAuto = autoTransactions.filter(auto => {
+            const isMatch = manualTransactions.some(man => {
+                const sameMonth = (man.date || '').substring(0, 7) === (auto.date || '').substring(0, 7);
+                const manAmt = parseFloat(man.amount) || 0;
+                const autoAmt = parseFloat(auto.amount) || 0;
+                
+                // Allow a 1% margin for bank fees/commission in manual transactions
+                const sameAmount = Math.abs(manAmt - autoAmt) < (autoAmt * 0.01 + 1); 
+                
+                const manDesc = (man.desc || '').toLowerCase();
+                const autoDesc = (auto.desc || '').toLowerCase();
+                const clientName = autoDesc.replace('facture', '').trim();
+                
+                // CRITICAL: Ensure manual injections/transfers are NOT mistaken for invoice duplicates
+                const isInvoiceRelated = manDesc.includes('facture') || man.category === 'Facture';
+                const matchesClient = clientName && manDesc.includes(clientName);
+                
+                return sameMonth && sameAmount && matchesClient && isInvoiceRelated;
+            });
+            return !isMatch;
+        });
+
+        return [...manualTransactions, ...deduplicatedAuto, ...autoSponsoring].map(t => ({
+            ...t,
+            isIgnored: ignoredTxs.some(ignored => ignored.id === t.id)
+        }));
+    }, [manualTransactions, autoTransactions, autoSponsoring, ignoredTxs]);
 
     // Extract unique RH names/roles dynamically from both clients (database) and actual transactions
     const baseEmployees = [];
@@ -248,91 +278,54 @@ const BanquePage = () => {
     )).sort();
 
     const formatMoney = (amount) => {
-        return new Intl.NumberFormat('fr-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(amount);
+        if (amount === undefined || amount === null) return '0 DT';
+        const formatted = new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+        }).format(amount);
+        return `${formatted} DT`;
     };
 
-    const handleSave = (t) => {
-        if (parseFloat(t.amount) < 0) {
-            alert("❗ Opération refusée.\nLe montant d'une transaction ne peut pas être négatif.");
-            return;
-        }
+    const formatNumber = (num) => {
+        return new Intl.NumberFormat('fr-FR', {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1
+        }).format(num);
+    };
 
-        let newTxs;
-        if (editingTransaction && editingTransaction.id !== undefined) {
-            // C'est une vraie modification d'une transaction manuelle
-            newTxs = manualTransactions.map(item => item.id === t.id ? t : item);
-        } else {
-            // Création d'une nouvelle transaction OU validation d'un draft (id n'existe pas encore dans manualTransactions)
-            newTxs = [...manualTransactions, { ...t, id: Date.now() }];
-        }
-        
-        setManualTransactions(newTxs);
-        saveBankTransactions(newTxs);
-
-        // Si c'est une charge perso récurrente, l'ajouter à la config si c'est nouveau
-        if (t.category === 'Perso' && t.isRecurrent) {
-            const configs = getStorage('mynds_perso_config', []);
-            // Vérifier si une config similaire existe déjà (par nom/montant)
-            const exists = configs.some(c => c.name === t.desc && c.category === t.persoCategory);
-            if (!exists) {
-                const newConfig = {
-                    id: Date.now() + Math.floor(Math.random() * 1000),
-                    name: t.desc,
-                    amount: t.amount,
-                    category: t.persoCategory,
-                    day: new Date(t.date).getDate(),
-                    bank: t.bank,
-                    active: true
-                };
-                setStorage('mynds_perso_config', [...configs, newConfig]);
+    const handleImportSave = async (importedTransactions) => {
+        try {
+            for (const t of importedTransactions) {
+                await addBankTransaction(t);
             }
-        }
-
-        setIsModalOpen(false);
-        setEditingTransaction(null);
-    };
-
-    const handleImportSave = (importedTransactions) => {
-        const newTransactions = [...manualTransactions, ...importedTransactions];
-        setManualTransactions(newTransactions);
-        saveBankTransactions(newTransactions);
-        setIsImportModalOpen(false);
-        alert(`${importedTransactions.length} transaction(s) importée(s) avec succès !`);
-    };
-
-    const handleDelete = (id) => {
-        if (window.confirm("Voulez-vous supprimer définitivement cette transaction ?")) {
-            setManualTransactions(prev => {
-                const newTxs = prev.filter(t => t.id !== id);
-                saveBankTransactions(newTxs);
-                return newTxs;
-            });
+            setIsImportModalOpen(false);
+            alert(`${importedTransactions.length} transaction(s) importée(s) avec succès !`);
+        } catch (err) {
+            alert('Erreur lors de l\'import : ' + err.message);
         }
     };
 
     const handleEdit = (t) => {
-        if (t.isAuto) return; // Prevention for auto invoices
+        if (t.isAuto) return; 
         setEditingTransaction(t);
         setIsModalOpen(true);
     };
 
-    const handleValidateDraft = (t) => {
-        // Open modal with draft prefilled so user can modify date/bank/amount before saving as permanent
-        setEditingTransaction({
-            ...t,
-            isDraft: false,  // Remove draft flag to lock it as an actual transaction
-            statut: 'Payé' // Ensure status flips from 'En attente'
-        });
-        setIsModalOpen(true);
+    const toggleIgnore = async (t) => {
+        try {
+            await updateBankTransaction(t.id, { ...t, isIgnored: !t.isIgnored });
+        } catch (err) {
+            alert('Erreur lors du toggle ignore : ' + err.message);
+        }
     };
 
-    const toggleIgnore = (t) => {
-        const alreadyIgnored = ignoredTxs.some(item => item.id === t.id);
-        if (alreadyIgnored) {
-            setIgnoredTxs(ignoredTxs.filter(item => item.id !== t.id));
-        } else {
-            setIgnoredTxs([...ignoredTxs, t]);
-        }
+    const handleValidateDraft = (t) => {
+        setEditingTransaction({
+            ...t,
+            isDraft: false, 
+            statut: 'Payé' 
+        });
+        setIsModalOpen(true);
     };
 
     // --- TVA Handlers ---
@@ -397,19 +390,30 @@ const BanquePage = () => {
                     const cStart = (cost.dateDebut || '1970-01-01').split('T')[0];
                     const cEnd = (cost.dateFin || '2099-12-31').split('T')[0];
 
-                    const isActiveThisMonth = (cStart <= targetEnd) && (cEnd >= targetStart);
+                    const serviceMonthKey = `${sYear}-${String(sMonth).padStart(2, '0')}`;
+                    let isActiveThisMonth = false;
+
+                    if (cost.recurrence === 'Ponctuel') {
+                        isActiveThisMonth = cStart.substring(0, 7) === serviceMonthKey;
+                    } else {
+                        isActiveThisMonth = (cStart <= targetEnd) && (cEnd >= targetStart);
+                    }
+
                     if (!isActiveThisMonth) return;
 
                     // Match logic: Priority to same amount, then any match for Name+Project
                     const findMatch = (pool, targetCost, targetClient, targetAmount) => {
-                        const nameLower = (targetCost.nom || '').toLowerCase();
-                        const projectLower = (targetClient.enseigne || '').toLowerCase();
+                        const nameLower = (targetCost.nom || '').toLowerCase().trim();
+                        const projectLower = (targetClient.enseigne || '').toLowerCase().trim();
                         
+                        // Strict name regex: matches name as a whole word or with specific separators
+                        const nameRegex = new RegExp(`(^|\\s|\\(|\\-)${nameLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|\\)|\\-|$)`, 'i');
+
                         // 1. Priority Match: Name + Project + Amount
                         let idx = pool.findIndex(p => {
                             if (p.isIgnored) return false;
                             const descLower = (p.desc || '').toLowerCase();
-                            const matchesName = nameLower && descLower.includes(nameLower);
+                            const matchesName = nameRegex.test(descLower);
                             const matchesProject = projectLower && descLower.includes(projectLower);
                             const matchesAmount = Math.abs((parseFloat(p.amount) || 0) - targetAmount) < 0.01;
                             return matchesName && matchesProject && matchesAmount;
@@ -420,7 +424,7 @@ const BanquePage = () => {
                             idx = pool.findIndex(p => {
                                 if (p.isIgnored) return false;
                                 const descLower = (p.desc || '').toLowerCase();
-                                const matchesName = nameLower && descLower.includes(nameLower);
+                                const matchesName = nameRegex.test(descLower);
                                 const matchesProject = projectLower && descLower.includes(projectLower);
                                 return matchesName && matchesProject;
                             });
@@ -546,6 +550,10 @@ const BanquePage = () => {
 
         setManualTransactions(newTxs);
         saveBankTransactions(newTxs);
+        
+        window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new CustomEvent('mynds_data_updated'));
+        
         alert("Salaires validés en lot avec la date de valeur (le 5).");
     };
 
@@ -619,6 +627,15 @@ const BanquePage = () => {
         alert("Paiements TVA validés en lot.");
     };
 
+    // --- UTILS ---
+    const safeParseFloat = (val) => {
+        if (val === undefined || val === null || val === '') return 0;
+        if (typeof val === 'number') return val;
+        // Remove spaces and replace comma with dot
+        const sanitized = String(val).replace(/\s/g, '').replace(',', '.');
+        return parseFloat(sanitized) || 0;
+    };
+
     const handleIgnoreTVA = (item) => {
         if (!window.confirm(`Ignorer/Masquer la TVA de la facture ${item.id} ?`)) return;
         
@@ -687,28 +704,52 @@ const BanquePage = () => {
         } catch (err) {
             console.error("❌ Reset Salary Error:", err);
             alert("Erreur : " + err.message);
-            setConfirmResetId(null);
         }
     };
+    const bankBalances = useMemo(() => {
+        const getBankBalance = (bankName) => {
+            if (!bankName) return 0;
+            const normalizedTarget = bankName.trim().toLowerCase();
+            return allTransactions
+                .filter(t => !t.isIgnored && (t.bank || '').trim().toLowerCase() === normalizedTarget)
+                .reduce((acc, t) => {
+                    const amt = safeParseFloat(t.amount);
+                    return acc + (t.type === 'Credit' ? amt : -amt);
+                }, 0);
+        };
 
-    const balanceBIAT = allTransactions
-        .filter(t => t.bank === 'BIAT' && !t.isDraft && !t.isIgnored)
-        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+        return activeBanks.reduce((acc, b) => {
+            acc[b.bank_name] = getBankBalance(b.bank_name);
+            return acc;
+        }, {});
+    }, [activeBanks, allTransactions]);
 
-    const balanceQNB = allTransactions
-        .filter(t => t.bank === 'QNB' && !t.isDraft && !t.isIgnored)
-        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+    const getSystemBalance = (name) => {
+        const normalizedTarget = name.toLowerCase();
+        return allTransactions
+            .filter(t => !t.isIgnored && (t.bank || '').trim().toLowerCase() === normalizedTarget)
+            .reduce((acc, t) => {
+                const amt = safeParseFloat(t.amount);
+                return acc + (t.type === 'Credit' ? amt : -amt);
+            }, 0);
+    };
 
-    const balanceEspeces = allTransactions
-        .filter(t => t.bank === 'Espèces' && !t.isDraft && !t.isIgnored)
-        .reduce((acc, curr) => acc + (curr.type === 'Credit' ? (parseFloat(curr.amount) || 0) : -(parseFloat(curr.amount) || 0)), 0);
+    const balanceEspeces = getSystemBalance('espèces');
+    const balanceCT = getSystemBalance('carte technologique');
 
-    const totalVirementsCT = allTransactions
-        .filter(t => t.category === 'Charges CT' && !t.isDraft && !t.isIgnored)
-        .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
-    const totalAchatsSponsoring = sponsoringList
-        .reduce((acc, curr) => acc + (parseFloat(curr.montantTNDBanque) || 0), 0);
-    const totalChargesCT = totalVirementsCT - totalAchatsSponsoring;
+    const totalGlobalNet = useMemo(() => {
+        const configBankSum = Object.values(bankBalances).reduce((a, b) => a + b, 0);
+        const hasEspecesInConfig = activeBanks.some(b => b.bank_name.toLowerCase().includes('espèce'));
+        const hasCTInConfig = activeBanks.some(b => b.bank_name.toLowerCase().includes('techno'));
+
+        return configBankSum + 
+              (hasEspecesInConfig ? 0 : balanceEspeces) + 
+              (hasCTInConfig ? 0 : balanceCT);
+    }, [bankBalances, activeBanks, balanceEspeces, balanceCT]);
+
+    const totalChargesCT = allTransactions
+        .filter(t => !t.isIgnored && (t.bank === 'Carte Technologique' || t.category === 'Charges CT') && t.type === 'Debit')
+        .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
 
     const filteredTransactions = allTransactions
         .filter(t => !t.isIgnored) 
@@ -722,10 +763,9 @@ const BanquePage = () => {
                     if (tMonth !== entreesMonthFilter) return false;
                 }
                 if (entreesClientFilter !== 'all') {
-                    // Check if the client name is part of the description, case-insensitive
-                    // Assuming client name is typically found after "Facture " or similar
-                    const clientNameInDesc = (t.desc || '').toLowerCase().includes(entreesClientFilter.toLowerCase());
-                    if (!clientNameInDesc) return false;
+                    // Strict match logic: look for exact name in description or as a word
+                    const nameRegex = new RegExp(`(^|\\s|\\(|\\-)${entreesClientFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|\\)|\\-|$)`, 'i');
+                    if (!nameRegex.test(t.desc || '')) return false;
                 }
                 return true;
             }
@@ -803,47 +843,33 @@ const BanquePage = () => {
                             Solde Global Net
                         </div>
                         <div style={{ fontSize: '24px', fontWeight: '900', color: 'var(--text-main)', marginTop: '4px' }}>
-                            {formatMoney(balanceBIAT + balanceQNB + balanceEspeces)}
+                            {formatMoney(totalGlobalNet)}
                         </div>
                     </div>
 
-                    {/* The 3 Bank Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', flex: 1 }}>
-                        {/* BIAT Card */}
-                        <div style={{
-                            background: 'var(--text-main)', padding: '16px', borderRadius: '16px', color: 'white',
-                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden'
-                        }}>
-                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1 }}><Landmark size={80} /></div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div>
-                                    <div style={{ fontSize: '9px', fontWeight: '700', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' }}>Compte BIAT</div>
+                    {/* The Bank Cards Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(activeBanks.length + 1, 4)}, 1fr)`, gap: '16px', flex: 1 }}>
+                        {activeBanks.map((bank) => (
+                            <div key={bank.id} style={{
+                                background: bank.isDefault ? 'var(--text-main)' : 'var(--card-bg)', 
+                                border: bank.isDefault ? 'none' : '1px solid var(--border-color)',
+                                padding: '16px', borderRadius: '16px', color: bank.isDefault ? 'white' : 'var(--text-main)',
+                                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
+                            }}>
+                                <div style={{ position: 'absolute', top: '-10px', right: '-10px', opacity: 0.1, color: bank.isDefault ? 'white' : 'var(--text-main)' }}><Landmark size={80} /></div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <div style={{ fontSize: '9px', fontWeight: '700', color: bank.isDefault ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)', textTransform: 'uppercase' }}>Compte {bank.bank_name}</div>
+                                    </div>
+                                    {bank.isDefault && <div style={{ background: 'rgba(255,193,5,0.2)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: 'var(--accent-gold)' }}>DÉFAUT</div>}
                                 </div>
-                                <div style={{ background: 'rgba(255,193,5,0.2)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: 'var(--accent-gold)' }}>SOCIÉTÉ</div>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
-                                <div style={{ fontSize: '20px', fontWeight: '900' }}>{formatMoney(balanceBIAT)}</div>
-                                <div style={{ fontSize: '10px', fontWeight: '800', color: '#c4b5fd', background: 'rgba(139, 92, 246, 0.2)', padding: '4px 8px', borderRadius: '6px', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(139, 92, 246, 0.3)' }} title="Total des versements vers la Carte Technologique">
-                                    <CreditCard size={12} />
-                                    Carte Tech: {formatMoney(totalChargesCT)}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
+                                    <div style={{ fontSize: '20px', fontWeight: '900' }}>{formatMoney(bankBalances[bank.bank_name] || 0)}</div>
+                                    <div style={{ fontSize: '9px', color: bank.isDefault ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', fontFamily: 'monospace' }}>{bank.account_number.slice(-8).padStart(20, '*')}</div>
                                 </div>
                             </div>
-                        </div>
-
-                        {/* QNB Card */}
-                        <div style={{
-                            background: 'white', padding: '16px', borderRadius: '16px', border: '1px solid var(--border-color)',
-                            display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden'
-                        }}>
-                            <div style={{ position: 'absolute', top: '-10px', right: '-10px', color: 'var(--text-muted)', opacity: 0.05 }}><Wallet size={80} /></div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div>
-                                    <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Compte QNB</div>
-                                </div>
-                                <div style={{ background: 'rgba(220, 38, 38, 0.1)', padding: '2px 6px', borderRadius: '6px', fontSize: '8px', fontWeight: '800', color: '#dc2626' }}>PERSO</div>
-                            </div>
-                            <div style={{ fontSize: '20px', fontWeight: '900', color: 'var(--text-main)', marginTop: '12px' }}>{formatMoney(balanceQNB)}</div>
-                        </div>
+                        ))}
 
                         {/* Espèces Card */}
                         <div style={{
@@ -1110,14 +1136,15 @@ const BanquePage = () => {
                 >
                     <ArrowUpRight size={16} /> Mynds
                 </button>
+
                 <button
                     onClick={() => setActiveTab('Charges RH')}
                     style={{
                         padding: '6px 16px',
                         borderRadius: '10px',
                         border: 'none',
-                        background: activeTab === 'Charges RH' ? 'rgba(202, 138, 4, 0.1)' : 'transparent',
-                        color: activeTab === 'Charges RH' ? '#ca8a04' : 'var(--text-muted)',
+                        background: activeTab === 'Charges RH' ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                        color: activeTab === 'Charges RH' ? '#f59e0b' : 'var(--text-muted)',
                         fontSize: '12px',
                         fontWeight: '800',
                         cursor: 'pointer',
@@ -1128,7 +1155,7 @@ const BanquePage = () => {
                         flexShrink: 0
                     }}
                 >
-                    <Users size={16} /> RH
+                    <Users size={16} /> RH / Salaires
                 </button>
 
                 <button
@@ -1200,16 +1227,83 @@ const BanquePage = () => {
                 <>
                 <div className="card" style={{ padding: '24px', borderRadius: '24px', marginTop: '24px' }}>
 
+                {/* Salary Proposals Section */}
+                {activeTab === 'Charges RH' && finalSalaryProposals.length > 0 && (
+                    <div style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.1) 100%)', border: '1px solid rgba(245, 158, 11, 0.2)', borderRadius: '20px', padding: '20px', marginBottom: '24px', boxShadow: '0 10px 30px rgba(245, 158, 11, 0.05)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#f59e0b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Users size={20} />
+                                </div>
+                                <div>
+                                    <h3 style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Propositions de Salaires (M+1)</h3>
+                                    <p style={{ fontSize: '11px', color: 'rgba(217, 119, 6, 0.8)', fontWeight: '700', textTransform: 'uppercase', margin: 0 }}>Basé sur les coûts projets actifs le mois de service</p>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={() => setIsGroupedByRH(!isGroupedByRH)} style={{ background: 'white', color: '#f59e0b', border: '1px solid #fed7aa', borderRadius: '10px', padding: '8px 12px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>
+                                    {isGroupedByRH ? 'Dégrouper (Vue Projets)' : 'Grouper par Nom'}
+                                </button>
+                                <button onClick={() => handleValidateSalary(finalSalaryProposals)} style={{ background: '#f59e0b', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '900', cursor: 'pointer' }}>
+                                    Tout Valider ({formatMoney(finalSalaryProposals.reduce((acc, s) => acc + s.amount, 0))})
+                                </button>
+                            </div>
+                        </div>
+                        <div className="clean-table-container">
+                            <table className="clean-table">
+                                <thead>
+                                    <tr>
+                                        <th>Collaborateur</th>
+                                        <th>Projet(s)</th>
+                                        <th className="text-right">Montant Dû</th>
+                                        <th className="text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {finalSalaryProposals.map((s, idx) => (
+                                        <tr key={idx} style={{ background: s.isPaid ? 'rgba(16, 185, 129, 0.05)' : 'transparent', opacity: s.isPaid ? 0.6 : 1, transition: 'all 0.3s' }}>
+                                            <td style={{ fontWeight: '800' }}>{s.name}</td>
+                                            <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.project}</td>
+                                            <td className="text-right" style={{ color: s.isPaid ? '#10b981' : '#f59e0b', fontWeight: '800' }}>{formatMoney(s.amount)}</td>
+                                            <td className="text-center">
+                                                {s.isPaid ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#10b981', fontSize: '11px', fontWeight: '900' }}>
+                                                        <Check size={14} /> PAYÉ
+                                                        <button onClick={() => handleResetSalary(s)} style={{ background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer', marginLeft: '4px' }} title="Réinitialiser / Annuler validation"><RotateCcw size={12} /></button>
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                                                        <button onClick={() => handleValidateSalary([s])} style={{ background: 'white', color: '#f59e0b', border: '1px solid #fed7aa', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}>Valider (Débiter)</button>
+                                                        <button onClick={() => handleIgnoreProposal(s)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6, padding: '4px' }}><EyeOff size={14} /></button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <div>
                         <h2 style={{ fontSize: '18px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>
                             {activeTab === 'Entrées' && 'Historique des Entrées'}
                             {activeTab === 'Charges Mynds' && 'Historique des Charges MYNDS'}
+                            {activeTab === 'Charges RH' && 'Historique des Salaires (RH)'}
                             {activeTab === 'Charges Perso' && 'Historique des Charges Perso'}
                             {activeTab === 'TVA' && 'Registre de la TVA Collectée (Achats)'}
                         </h2>
-                        <div style={{ fontSize: '12px', fontWeight: '800', color: (activeTab === 'Entrées' || activeTab === 'TVA') ? '#10b981' : (activeTab === 'Charges RH' ? '#ca8a04' : '#ef4444'), textTransform: 'uppercase', marginTop: '2px' }}>
-                            Total • {formatMoney(activeTab === 'TVA' ? totalTVA : filteredTransactions.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0))}
+                        <div style={{ display: 'flex', gap: '16px', marginTop: '4px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '800', color: (activeTab === 'Entrées' || activeTab === 'TVA') ? '#10b981' : '#ef4444', textTransform: 'uppercase' }}>
+                                Total • {formatMoney(activeTab === 'TVA' ? totalTVA : filteredTransactions.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0))}
+                            </div>
+                            {activeTab === 'Entrées' && (
+                                <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    En attente (Incr.) • {formatMoney(factures.filter(f => (f.statut === 'Sent' || f.statut === 'Late') && (entreesClientFilter === 'all' || f.client === entreesClientFilter)).reduce((acc, f) => acc + (f.montant || 0), 0))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -1246,20 +1340,20 @@ const BanquePage = () => {
                             </>
                         )}
 
-                        {(activeTab === 'Charges Mynds' || activeTab === 'Charges RH') && (
+                        {activeTab === 'Charges Mynds' && (
                             <>
                                 <div style={{ display: 'flex', gap: '4px' }}>
                                     <select
                                         value={selYear}
                                         onChange={e => handleYearChange(e.target.value)}
-                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: activeTab === 'Charges RH' ? '#ca8a04' : '#ef4444', outline: 'none' }}
+                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: '#ef4444', outline: 'none' }}
                                     >
                                         {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                                     </select>
                                     <select
                                         value={String(selMonth).padStart(2, '0')}
                                         onChange={e => handleMonthChange(e.target.value)}
-                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: activeTab === 'Charges RH' ? '#ca8a04' : '#ef4444', outline: 'none' }}
+                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: '#ef4444', outline: 'none' }}
                                     >
                                         <option value="all">Tous les mois (ANNUEL)</option>
                                         {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
@@ -1267,30 +1361,50 @@ const BanquePage = () => {
                                         ))}
                                     </select>
                                 </div>
-                                {activeTab === 'Charges RH' && (
-                                    <>
-                                        <select
-                                            value={chargeTypeFilter}
-                                            onChange={e => setChargeTypeFilter(e.target.value)}
-                                            style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: chargeTypeFilter.startsWith('RH') ? '#ca8a04' : 'var(--text-main)' }}
-                                        >
-                                            <option value="all">Tous Employés</option>
-                                            {uniqueRHNames.map(name => (
-                                                <option key={name} value={`RH-${name}`}>👤 {name}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            value={rhClientFilter}
-                                            onChange={e => setRhClientFilter(e.target.value)}
-                                            style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: rhClientFilter !== 'all' ? '#ca8a04' : 'var(--text-main)' }}
-                                        >
-                                            <option value="all">Tous Clients</option>
-                                            {activeClients.map(c => (
-                                                <option key={c.id} value={c.enseigne}>🏢 {c.enseigne}</option>
-                                            ))}
-                                        </select>
-                                    </>
-                                )}
+                            </>
+                        )}
+
+                        {activeTab === 'Charges RH' && (
+                            <>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <select
+                                        value={selYear}
+                                        onChange={e => handleYearChange(e.target.value)}
+                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: '#f59e0b', outline: 'none' }}
+                                    >
+                                        {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                    <select
+                                        value={String(selMonth).padStart(2, '0')}
+                                        onChange={e => handleMonthChange(e.target.value)}
+                                        style={{ padding: '7px 8px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '11px', fontWeight: '800', color: '#f59e0b', outline: 'none' }}
+                                    >
+                                        <option value="all">Tous les mois (ANNUEL)</option>
+                                        {['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => (
+                                            <option key={m} value={m}>{['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'][i]}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <select
+                                    value={chargeTypeFilter}
+                                    onChange={e => setChargeTypeFilter(e.target.value)}
+                                    style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: chargeTypeFilter !== 'all' ? '#f59e0b' : 'var(--text-main)' }}
+                                >
+                                    <option value="all">Tout le Staff</option>
+                                    {uniqueRHNames.map(name => (
+                                        <option key={name} value={`RH-${name}`}>{name}</option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={rhClientFilter}
+                                    onChange={e => setRhClientFilter(e.target.value)}
+                                    style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: rhClientFilter !== 'all' ? '#f59e0b' : 'var(--text-main)' }}
+                                >
+                                    <option value="all">Tous Projets</option>
+                                    {activeClients.map(c => (
+                                        <option key={c.id} value={c.enseigne}>{c.enseigne}</option>
+                                    ))}
+                                </select>
                             </>
                         )}
 
@@ -1317,138 +1431,11 @@ const BanquePage = () => {
                             >
                                 <Plus size={16} /> Ajouter
                             </button>
-                        </div>
+                                      </div>
                     </div>
                 </div>
 
-                {activeTab === 'Charges RH' && salaryProposals.length > 0 && (
-                    <div style={{ background: 'linear-gradient(135deg, rgba(202, 138, 4, 0.05) 0%, rgba(202, 138, 4, 0.1) 100%)', border: '1px solid rgba(202, 138, 4, 0.2)', borderRadius: '16px', padding: '12px 16px', marginBottom: '16px', boxShadow: '0 8px 24px rgba(202, 138, 4, 0.05)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#ca8a04', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Banknote size={20} />
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div>
-                                        <h3 style={{ fontSize: '15px', fontWeight: '900', color: 'var(--text-main)', margin: 0 }}>Propositions de Salaires</h3>
-                                        <p style={{ fontSize: '11px', color: 'rgba(202, 138, 4, 0.8)', fontWeight: '700', textTransform: 'uppercase', margin: 0 }}>Paiement prévu le 05/{monthStr} - Travail de {salaryProposals[0]?.serviceMonthName || '...'} {salaryProposals[0]?.serviceYear || yearInt}</p>
-                                    </div>
-                                    <button 
-                                        onClick={() => setIsGroupedByRH(!isGroupedByRH)}
-                                        style={{ 
-                                            padding: '4px 10px', 
-                                            borderRadius: '8px', 
-                                            border: '1px solid rgba(202, 138, 4, 0.3)', 
-                                            background: isGroupedByRH ? '#ca8a04' : 'transparent', 
-                                            color: isGroupedByRH ? 'white' : '#ca8a04', 
-                                            fontSize: '10px', 
-                                            fontWeight: '800', 
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s',
-                                            textTransform: 'uppercase'
-                                        }}
-                                    >
-                                        {isGroupedByRH ? '✓ Regroupé par Nom' : 'Regrouper par Nom'}
-                                    </button>
-                                </div>
-                            </div>
-                            <button onClick={() => handleValidateSalary(finalSalaryProposals)} style={{ background: '#ca8a04', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 16px', fontSize: '12px', fontWeight: '900', cursor: 'pointer' }}>
-                                Tout Valider ({formatMoney(finalSalaryProposals.reduce((acc, s) => acc + s.amount, 0))})
-                            </button>
-                        </div>
-                        <div className="clean-table-container">
-                            <table className="clean-table">
-                                <thead>
-                                    <tr>
-                                        <th>Employé</th>
-                                        <th>Client (Projet)</th>
-                                        <th>Mois (Svc)</th>
-                                        <th>Date prévue</th>
-                                        <th className="text-right">Montant</th>
-                                        <th className="text-center">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {finalSalaryProposals.map((s, idx) => {
-                                        const expectedPaymentDate = new Date(yearInt, parseInt(monthStr, 10) - 1, 5).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                                        return (
-                                            <tr key={idx} style={{ background: s.isPaid ? 'rgba(16, 185, 129, 0.08)' : 'transparent', transition: 'all 0.3s' }}>
-                                                <td className="clean-primary-text">
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        {s.isPaid && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></div>}
-                                                        {s.name}
-                                                    </div>
-                                                </td>
-                                                <td className="clean-secondary-text" style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.project}>{s.project}</td>
-                                                <td className="clean-secondary-text" style={{ textTransform: 'capitalize' }}>{s.serviceMonthName} {s.serviceYear}</td>
-                                                <td className="clean-secondary-text">{expectedPaymentDate}</td>
-                                                <td className="text-right" style={{ color: s.isPaid ? '#10b981' : '#222222', fontWeight: '800' }}>{formatMoney(s.amount)}</td>
-                                                <td className="text-center">
-                                                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                        {s.isPaid ? (
-                                                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                                                    <span style={{ fontSize: '9px', fontWeight: '900', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>Payé</span>
-                                                                    
-                                                                    <button 
-                                                                        onClick={() => toggleIgnore(s.transaction)} 
-                                                                        style={{ background: 'white', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                                        title="Archiver vers l'historique"
-                                                                    >
-                                                                        Archiver
-                                                                    </button>
 
-                                                                    {confirmResetId === s.transaction?.id ? (
-                                                                        <button 
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                handleResetSalary(s);
-                                                                            }}
-                                                                            onMouseLeave={() => setConfirmResetId(null)}
-                                                                            style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', animation: 'pulse 1s infinite' }}
-                                                                        >
-                                                                            <RotateCcw size={12} />
-                                                                            Confirmer ?
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button 
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                setConfirmResetId(s.transaction?.id);
-                                                                            }}
-                                                                            style={{ background: '#fee2e2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '6px', padding: '3px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                                            title="Réinitialiser (Annuler la validation)"
-                                                                        >
-                                                                            <RotateCcw size={12} />
-                                                                            Annuler
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                        ) : (
-                                                            <div style={{ display: 'flex', gap: '4px' }}>
-                                                                <button onClick={() => handleValidateSalary([s])} style={{ background: 'white', color: '#B45309', border: '1px solid #FDE68A', borderRadius: '6px', padding: '4px 8px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s' }}>Valider</button>
-                                                                <button 
-                                                                    onClick={() => handleIgnoreProposal(s)} 
-                                                                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', opacity: 0.6, padding: '4px' }}
-                                                                    title="Supprimer / Ignorer ce mois-ci"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
 
                 {activeTab === 'Charges TVA' && (
                     <div style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.05) 0%, rgba(2, 132, 199, 0.1) 100%)', border: '1px solid rgba(2, 132, 199, 0.2)', borderRadius: '20px', padding: '20px', marginBottom: '24px', boxShadow: '0 10px 30px rgba(2, 132, 199, 0.05)' }}>
@@ -1522,15 +1509,14 @@ const BanquePage = () => {
                     </div>
                 )}
 
-                <div className={activeTab === 'Charges RH' ? 'rh-table-container' : 'clean-table-container'}>
+                <div className="clean-table-container">
                     {activeTab !== 'TVA' ? (
-                        <table className={activeTab === 'Charges RH' ? 'rh-table' : 'clean-table'}>
+                        <table className="clean-table">
                             <thead>
                                 <tr>
                                     <th>Date</th>
                                     <th>N° Fact</th>
                                     <th>Désignation</th>
-                                    {activeTab === 'Charges RH' && <th>Projet</th>}
                                     <th>Mois (Svc)</th>
                                     <th>Banque</th>
                                     <th>Catégorie</th>
@@ -1545,35 +1531,19 @@ const BanquePage = () => {
                                         <td className="clean-primary-text">{t.originalId ? <span style={{ background: 'rgba(255, 193, 5, 0.1)', padding: '2px 4px', borderRadius: '4px', fontSize: '10px' }}>{t.originalId === 'non déclarée' ? 'ND' : t.originalId}</span> : '-'}</td>
                                         <td>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                {activeTab === 'Charges RH' && (
-                                                    <span className={`status-dot ${t.isAuto ? 'mustard' : 'grey'}`} style={{ marginRight: '8px' }} title={t.isAuto ? 'Validé' : 'En attente'} />
-                                                )}
                                                 <div className="clean-primary-text">{t.desc}</div>
                                                 {t.isDraft && <span className="status-pending" style={{ fontSize: '10px', marginLeft: '6px' }}>En attente</span>}
-                                                {t.isAuto && activeTab !== 'Charges RH' && <span className="status-paid" style={{ fontSize: '10px', marginLeft: '6px' }}>Validé</span>}
+                                                {t.isAuto && <span className="status-paid" style={{ fontSize: '10px', marginLeft: '6px' }}>Validé</span>}
                                             </div>
                                         </td>
-                                        {activeTab === 'Charges RH' && (
-                                            <td className="clean-secondary-text">
-                                                {(() => {
-                                                    const descLower = (t.desc || '').toLowerCase();
-                                                    const found = clients.find(c => 
-                                                        c.projectCosts && c.projectCosts.some(pc => 
-                                                            pc.nom && descLower.includes(pc.nom.toLowerCase())
-                                                        )
-                                                    );
-                                                    return found ? found.enseigne : 'Autres';
-                                                })()}
-                                            </td>
-                                        )}
                                         <td className="clean-secondary-text">{t.serviceMonth ? new Date(t.serviceMonth + '-01').toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) : '-'}</td>
                                         <td className="clean-secondary-text">{t.bank}</td>
                                         <td className="clean-secondary-text">{t.category}</td>
-                                        <td className="text-right" style={{ color: t.type === 'Credit' ? '#8DAB96' : '#222222', fontWeight: activeTab === 'Charges RH' ? '700' : '400' }}>{t.type === 'Debit' ? '-' : '+'}{formatMoney(t.amount)}</td>
+                                        <td className="text-right" style={{ color: t.type === 'Credit' ? '#8DAB96' : '#222222', fontWeight: '400' }}>{t.type === 'Debit' ? '-' : '+'}{formatMoney(t.amount)}</td>
                                         <td className="text-center">
                                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                                                 {t.isDraft ? (
-                                                    <button onClick={() => handleValidateDraft(t)} style={{ background: activeTab === 'Charges RH' ? '#D4A017' : '#d97706', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>Valider</button>
+                                                    <button onClick={() => handleValidateDraft(t)} style={{ background: '#d97706', color: 'white', border: 'none', padding: '4px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>Valider</button>
                                                 ) : (
                                                     <>
                                                         {!t.isAuto && <button onClick={() => handleEdit(t)} style={{ background: 'transparent', border: 'none', color: '#999999', cursor: 'pointer' }}><MoreHorizontal size={14} /></button>}
@@ -1755,6 +1725,7 @@ const BanquePage = () => {
                     onSave={handleSave}
                     transaction={editingTransaction}
                     activeTab={activeTab}
+                    activeBanks={activeBanks}
                 />
             )}
 
@@ -1780,12 +1751,12 @@ const BanquePage = () => {
     );
 };
 
-const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) => {
+const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab, activeBanks }) => {
     const getModalContext = () => {
         if (activeTab === 'Entrées') return { title: 'Nouvelle Entrée Cash', color: '#10b981', icon: <ArrowDownLeft size={20} />, defaultType: 'Credit' };
 
         if (activeTab === 'Charges CT') return { title: 'Charge / Versement CT', color: '#8b5cf6', icon: <CreditCard size={20} />, defaultType: 'Debit' };
-        if (activeTab === 'Charges RH') return { title: 'Dépense Salariale / RH', color: '#ca8a04', icon: <Users size={20} />, defaultType: 'Debit' };
+
         return { title: 'Charge Mynds Team', color: '#ef4444', icon: <ArrowUpRight size={20} />, defaultType: 'Debit' };
     };
 
@@ -1794,7 +1765,7 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
     const [formData, setFormData] = useState(transaction || {
         date: new Date().toISOString().split('T')[0],
         desc: '',
-        bank: 'BIAT',
+        bank: activeBanks.find(b => b.isDefault)?.bank_name || 'BIAT',
         type: context.defaultType,
         amount: 0,
         category: activeTab === 'Charges CT' ? 'Charges CT' : (activeTab === 'Charges RH' ? 'Charges' : (activeTab === 'Charges Mynds' ? 'Mynds Logistique' : 'Autre')),
@@ -1829,9 +1800,10 @@ const TransactionModal = ({ isOpen, onClose, onSave, transaction, activeTab }) =
     }
 
     const getAllowedBanks = (cat) => {
-        if (cat === 'Perso') return ['QNB', 'Espèces', 'Capital Personnel'];
-        if (cat === 'Charges CT') return ['BIAT', 'Carte Technologique'];
-        return ['BIAT', 'QNB', 'Espèces', 'Capital Personnel'];
+        const bankNames = activeBanks.map(b => b.bank_name);
+        if (cat === 'Perso') return [...bankNames, 'Espèces', 'Capital Personnel'];
+        if (cat === 'Charges CT') return [...bankNames, 'Carte Technologique'];
+        return [...bankNames, 'Espèces', 'Capital Personnel'];
     };
 
     const allowedBanks = getAllowedBanks(formData.category);

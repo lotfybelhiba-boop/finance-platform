@@ -1,22 +1,226 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Header from '../components/Header';
-import { Settings, Briefcase, Tag, Users, Plus, Trash2, Edit2, Calendar, HardDrive, Download, Upload } from 'lucide-react';
+import { Settings, Briefcase, Tag, Users, Plus, Trash2, Edit2, Calendar, HardDrive, Download, Upload, CreditCard, CheckCircle2, AlertCircle, Check, Building2 } from 'lucide-react';
 import { initialSecteurs, initialServices, initialRh, loadConfig, saveConfig } from '../data/defaultConfig';
 import RHFormModal from '../components/RHFormModal';
-import { getClients } from '../services/storageService';
+import { getClients, getStorage, setStorage } from '../services/storageService';
+
+// --- SUB-COMPONENTS: BANQUES ---
+
+const BankManagerTab = ({ companyBanks, setCompanyBanks }) => {
+    const [newBank, setNewBank] = useState({ bank_name: '', swift_bic: '', account_number: '', currency: 'TND', isDefault: false, actif: true });
+    const [errors, setErrors] = useState({});
+
+    const validate = () => {
+        let errs = {};
+        if (!newBank.bank_name) errs.bank_name = 'Obligatoire';
+        if (!newBank.swift_bic) errs.swift_bic = 'Obligatoire';
+        else if (!/^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(newBank.swift_bic)) errs.swift_bic = 'Format SWIFT invalide';
+        
+        if (!newBank.account_number) errs.account_number = 'Obligatoire';
+        else if (newBank.account_number.length < 10) errs.account_number = 'Trop court';
+        
+        setErrors(errs);
+        return Object.keys(errs).length === 0;
+    };
+
+    const handleAdd = () => {
+        if (!validate()) return;
+        
+        const newBankWithId = { ...newBank, id: Date.now().toString(), actif: true };
+        let updated = [...companyBanks, newBankWithId];
+        
+        // If it's the first one or set as default, ensure only one is default
+        if (newBank.isDefault || companyBanks.length === 0) {
+            updated = updated.map(b => ({
+                ...b,
+                isDefault: b.id === newBankWithId.id
+            }));
+        }
+        
+        setCompanyBanks(updated);
+        setNewBank({ bank_name: '', swift_bic: '', account_number: '', currency: 'TND', isDefault: false });
+        setErrors({});
+    };
+
+    const handleDelete = (id) => {
+        if (window.confirm("Supprimer cette banque ?")) {
+            setCompanyBanks(companyBanks.filter(b => b.id !== id));
+        }
+    };
+
+    const toggleDefault = (id) => {
+        setCompanyBanks(companyBanks.map(b => ({
+            ...b,
+            isDefault: b.id === id,
+            actif: b.id === id ? true : b.actif // If set as default, must be active
+        })));
+    };
+
+    const toggleActif = (id) => {
+        setCompanyBanks(companyBanks.map(b => {
+            if (b.id === id) {
+                // Cannot deactivate default bank
+                if (b.isDefault) {
+                    alert("Impossible de désactiver la banque par défaut.");
+                    return b;
+                }
+                return { ...b, actif: !b.actif };
+            }
+            return b;
+        }));
+    };
+
+    return (
+        <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+            <div style={{ marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>Comptes Bancaires de l'Entreprise</h2>
+                <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Configurez vos RIB pour l'émission des factures et le suivi bancaire.</p>
+            </div>
+
+            {/* FORM ROW */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 2fr 1fr 1fr 0.5fr', gap: '12px', marginBottom: '32px', background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color)', alignItems: 'end' }}>
+                <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase' }}>Nom de la Banque</label>
+                    <input 
+                        type="text" 
+                        placeholder="Ex: BIAT, QNB..." 
+                        value={newBank.bank_name} 
+                        onChange={e => setNewBank({...newBank, bank_name: e.target.value})}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: errors.bank_name ? '1px solid #ef4444' : '1px solid var(--border-color)', background: 'white', fontSize: '13px', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase' }}>SWIFT / BIC</label>
+                    <input 
+                        type="text" 
+                        placeholder="Ex: BIATTNTN" 
+                        value={newBank.swift_bic} 
+                        onChange={e => setNewBank({...newBank, swift_bic: e.target.value.toUpperCase()})}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: errors.swift_bic ? '1px solid #ef4444' : '1px solid var(--border-color)', background: 'white', fontSize: '13px', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase' }}>Numéro de Compte (RIB)</label>
+                    <input 
+                        type="text" 
+                        placeholder="20 chiffres..." 
+                        value={newBank.account_number} 
+                        onChange={e => setNewBank({...newBank, account_number: e.target.value})}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: errors.account_number ? '1px solid #ef4444' : '1px solid var(--border-color)', background: 'white', fontSize: '13px', outline: 'none' }}
+                    />
+                </div>
+                <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase' }}>Devise</label>
+                    <select 
+                        value={newBank.currency} 
+                        onChange={e => setNewBank({...newBank, currency: e.target.value})}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'white', fontSize: '13px', outline: 'none' }}
+                    >
+                        <option value="TND">TND</option>
+                        <option value="EUR">EUR</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase' }}>Défaut</label>
+                    <button 
+                        onClick={() => setNewBank({...newBank, isDefault: !newBank.isDefault})}
+                        style={{ padding: '8px', borderRadius: '10px', border: 'none', background: newBank.isDefault ? '#10b981' : 'var(--bg-main)', color: newBank.isDefault ? 'white' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        {newBank.isDefault ? <Check size={16} /> : <div style={{width: 16, height: 16}} />}
+                    </button>
+                </div>
+                <button 
+                    onClick={handleAdd}
+                    style={{ padding: '10px', borderRadius: '10px', border: 'none', background: 'var(--text-main)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <Plus size={20} />
+                </button>
+            </div>
+
+            {/* LIST TABLE */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Banque</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>SWIFT / BIC</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Numéro de Compte</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Devise</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Statut</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'center' }}>Défaut</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', textAlign: 'right', width: '80px' }}>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {companyBanks.map((bank) => (
+                        <tr key={bank.id} style={{ borderBottom: '1px solid var(--border-color)', background: bank.isDefault ? 'rgba(255, 193, 5, 0.03)' : 'transparent' }}>
+                            <td style={{ padding: '16px', fontWeight: '700', color: 'var(--text-main)', fontSize: '14px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Building2 size={16} />
+                                    </div>
+                                    {bank.bank_name}
+                                </div>
+                            </td>
+                            <td style={{ padding: '16px', color: 'var(--text-muted)', fontSize: '13px', fontFamily: 'monospace' }}>{bank.swift_bic}</td>
+                            <td style={{ padding: '16px', color: 'var(--text-main)', fontWeight: '600', fontSize: '14px', letterSpacing: '0.5px' }}>{bank.account_number}</td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                                <span style={{ padding: '4px 8px', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', fontSize: '11px', fontWeight: '800' }}>{bank.currency}</span>
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                                <button 
+                                    onClick={() => toggleActif(bank.id)}
+                                    style={{ 
+                                        padding: '4px 12px', 
+                                        borderRadius: '100px', 
+                                        border: 'none', 
+                                        fontSize: '10px', 
+                                        fontWeight: '800', 
+                                        cursor: 'pointer',
+                                        background: bank.actif ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0,0,0,0.05)',
+                                        color: bank.actif ? '#10b981' : 'var(--text-muted)'
+                                    }}
+                                >
+                                    {bank.actif ? 'ACTIF' : 'INACTIF'}
+                                </button>
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'center' }}>
+                                <button 
+                                    onClick={() => toggleDefault(bank.id)}
+                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: bank.isDefault ? '#10b981' : 'var(--text-muted)' }}
+                                >
+                                    {bank.isDefault ? <CheckCircle2 size={20} /> : <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--border-color)' }} />}
+                                </button>
+                            </td>
+                            <td style={{ padding: '16px', textAlign: 'right' }}>
+                                <button onClick={() => handleDelete(bank.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#EF4444' }}><Trash2 size={16} /></button>
+                            </td>
+                        </tr>
+                    ))}
+                    {companyBanks.length === 0 && (
+                        <tr>
+                            <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
+                                <AlertCircle size={32} style={{ marginBottom: '12px', opacity: 0.3 }} />
+                                <div style={{ fontWeight: '600' }}>Aucune banque configurée</div>
+                                <div style={{ fontSize: '12px' }}>Ajoutez votre premier RIB ci-dessus.</div>
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+    );
+};
 
 const ConfigPage = () => {
     const [activeTab, setActiveTab] = useState('secteurs');
 
-    // Modal state for RH
-    const [isRHModalOpen, setIsRHModalOpen] = useState(false);
-    const [editingRH, setEditingRH] = useState(null);
+    // Modal state
+    const [isSecteurModalOpen, setIsSecteurModalOpen] = useState(false);
 
     // File input ref for importing backup
     const fileInputRef = useRef(null);
-
-    // DATA FOR SECTEURS & PROJETS
-    const [secteurs, setSecteurs] = useState(() => loadConfig('secteurs', initialSecteurs));
 
     // DATA FOR SERVICES & PRIX
     const [services, setServices] = useState(() => {
@@ -24,7 +228,17 @@ const ConfigPage = () => {
         return loaded.length > 0 ? loaded : initialServices;
     });
 
-    const [rhList, setRhList] = useState(() => loadConfig('rh', initialRh));
+    const [secteurs, setSecteurs] = useState(() => {
+        const loaded = loadConfig('secteurs', initialSecteurs);
+        return loaded.length > 0 ? loaded : initialSecteurs;
+    });
+
+    const [companyBanks, setCompanyBanks] = useState(() => {
+        return getStorage('mynds_company_banks', [
+            { id: '1', bank_name: 'BIAT', swift_bic: 'BIATTNTN', account_number: '08000000000000000000', currency: 'TND', isDefault: true, actif: true },
+            { id: '2', bank_name: 'QNB', swift_bic: 'QNBTNTN', account_number: '12000000000000000000', currency: 'TND', isDefault: false, actif: true }
+        ]);
+    });
 
     // STORAGE CALCULATION
     const [storageInfo, setStorageInfo] = useState({ used: 0, mbUsed: 0, max: 5, percentage: 0 });
@@ -49,7 +263,7 @@ const ConfigPage = () => {
     // Auto-save when config changes
     useEffect(() => { saveConfig('secteurs', secteurs); }, [secteurs]);
     useEffect(() => { saveConfig('services', services); }, [services]);
-    useEffect(() => { saveConfig('rh', rhList); }, [rhList]);
+    useEffect(() => { setStorage('mynds_company_banks', companyBanks); }, [companyBanks]);
 
     // HANDLERS SECTEURS
     const handleAddSecteur = () => {
@@ -102,30 +316,7 @@ const ConfigPage = () => {
         return [];
     }, []);
 
-    // HANDLERS RH
-    const handleAddRH = () => {
-        setEditingRH(null);
-        setIsRHModalOpen(true);
-    };
 
-    const handleEditRH = (rh) => {
-        setEditingRH(rh);
-        setIsRHModalOpen(true);
-    };
-
-    const handleSaveRH = (rhData) => {
-        if (editingRH) {
-            setRhList(rhList.map(r => r.id === rhData.id ? rhData : r));
-        } else {
-            setRhList([...rhList, rhData]);
-        }
-    };
-
-    const handleDeleteRH = (id) => {
-        if (window.confirm("Êtes-vous sûr de vouloir supprimer cette personne ?")) {
-            setRhList(rhList.filter(r => r.id !== id));
-        }
-    };
 
     // HANDLERS BACKUP & RESTORE
     const handleExportData = () => {
@@ -220,10 +411,10 @@ const ConfigPage = () => {
                     </button>
 
                     <button
-                        onClick={() => setActiveTab('rh')}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', border: 'none', background: activeTab === 'rh' ? 'var(--text-main)' : 'transparent', color: activeTab === 'rh' ? 'white' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s', marginBottom: '8px', textAlign: 'left' }}
+                        onClick={() => setActiveTab('banques')}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', border: 'none', background: activeTab === 'banques' ? 'var(--text-main)' : 'transparent', color: activeTab === 'banques' ? 'white' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600', transition: 'all 0.2s', marginBottom: '8px', textAlign: 'left' }}
                     >
-                        <Users size={18} /> Liste RH
+                        <CreditCard size={18} /> Banques Entreprise
                     </button>
 
                     <button
@@ -322,121 +513,13 @@ const ConfigPage = () => {
                         </div>
                     )}
 
-                    {/* TAB: LISTE RH */}
-                    {activeTab === 'rh' && (
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                <div>
-                                    <h2 style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>Ressources Humaines (RH)</h2>
-                                    <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Gérez la liste de vos employés et collaborateurs.</p>
-                                </div>
-                                <button onClick={handleAddRH} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '10px', border: 'none', background: 'var(--text-main)', color: 'white', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}>
-                                    <Plus size={16} /> Ajouter Employé
-                                </button>
-                            </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
-                                {rhList.map(emp => {
-                                    // Dynamically calculate assigned projects and total cost
-                                    let assignedProjects = [];
-                                    let dynamicTotalCost = 0;
-
-                                    clientsData.forEach(client => {
-                                        if (client.etatClient !== 'Inactif' && client.projectCosts && Array.isArray(client.projectCosts)) {
-                                            client.projectCosts.forEach(cost => {
-                                                if (cost.nom === emp.nom) {
-                                                    assignedProjects.push(client.enseigne);
-                                                    dynamicTotalCost += (parseFloat(cost.montant) || 0);
-                                                }
-                                            });
-                                        }
-                                    });
-                                    // Remove duplicates if assigned multiple times on same client
-                                    assignedProjects = [...new Set(assignedProjects)];
-
-                                    return (
-                                        <div key={emp.id} style={{
-                                            border: '1px solid var(--border-color)', borderRadius: '16px',
-                                            background: 'var(--bg-main)', display: 'flex', flexDirection: 'column',
-                                            overflow: 'hidden', transition: 'transform 0.2s, box-shadow 0.2s',
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
-                                        }}
-                                            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.05)'; }}
-                                            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.02)'; }}
-                                        >
-                                            <div style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center', borderBottom: '1px solid var(--border-color)' }}>
-                                                <div style={{
-                                                    width: '48px', height: '48px', borderRadius: '50%',
-                                                    background: 'rgba(255, 193, 5, 0.1)', color: 'var(--accent-gold)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    fontWeight: '800', fontSize: '18px', border: '1px solid rgba(255,193,5,0.2)'
-                                                }}>
-                                                    {emp.nom.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            {emp.nom}
-                                                            {emp.actif === false && <span style={{ fontSize: '10px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Inactif</span>}
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '4px' }}>
-                                                            <button onClick={() => handleEditRH(emp)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', borderRadius: '6px' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                                                                <Edit2 size={14} />
-                                                            </button>
-                                                            <button onClick={() => handleDeleteRH(emp.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '4px', borderRadius: '6px' }} onMouseOver={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-secondary)', marginTop: '2px' }}>{emp.poste}</div>
-                                                </div>
-                                            </div>
-
-                                            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}>
-                                                
-                                                {assignedProjects.length > 0 && (
-                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                                        {assignedProjects.map((p, i) => (
-                                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--card-bg)', padding: '6px 10px', borderRadius: '8px', border: '1px dashed var(--border-color)' }}>
-                                                                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-gold)' }} />
-                                                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-main)' }}>{p}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                        <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Charge RH (Coût total)</span>
-                                                        <span style={{ fontWeight: '700', color: 'var(--danger)' }}>{dynamicTotalCost > 0 ? formatMoney(dynamicTotalCost) : '--'}</span>
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-end' }}>
-                                                        <span style={{ color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Date de début</span>
-                                                        <span style={{ fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            {emp.dateDebut ? (
-                                                                <>
-                                                                    <Calendar size={12} style={{ color: 'var(--accent-gold)' }} />
-                                                                    {new Date(emp.dateDebut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-                                                                </>
-                                                            ) : '--'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {emp.taches && (
-                                                    <div style={{ marginTop: 'auto', background: 'rgba(15,23,42,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(15,23,42,0.05)' }}>
-                                                        <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tâches associées :</div>
-                                                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', whiteSpace: 'pre-wrap', display: '-webkit-box', WebkitLineClamp: '3', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                                            {emp.taches}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                    {/* TAB: BANQUES ENTREPRISE */}
+                    {activeTab === 'banques' && (
+                        <BankManagerTab 
+                            companyBanks={companyBanks} 
+                            setCompanyBanks={setCompanyBanks} 
+                        />
                     )}
 
                     {/* TAB: SYSTEME & STOCKAGE */}
@@ -523,17 +606,7 @@ const ConfigPage = () => {
                 </div>
             </div>
 
-            {/* MODALS */}
-            {isRHModalOpen && (
-                <RHFormModal
-                    key={editingRH?.id || 'new'}
-                    isOpen={isRHModalOpen}
-                    onClose={() => { setIsRHModalOpen(false); setEditingRH(null); }}
-                    onSave={handleSaveRH}
-                    initialData={editingRH}
-                    projetsDisponibles={allProjets}
-                />
-            )}
+
         </div>
     );
 };

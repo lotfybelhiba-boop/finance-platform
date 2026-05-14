@@ -1,7 +1,7 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import NotesWidget from './NotesWidget';
-import MigrationSync from './MigrationSync';
+
 import { User, LogOut } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -35,7 +35,7 @@ const Layout = ({ children }) => {
                                 </div>
                             )}
                         </div>
-                        <MigrationSync />
+
                     </div>
                     {children}
                 </main>

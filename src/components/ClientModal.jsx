@@ -3,7 +3,7 @@ import { X, Plus, Trash2, Check } from 'lucide-react';
 import { loadConfig, initialSecteurs, initialServices } from '../data/defaultConfig';
 import { generateId, getClients, generateSequentialClientId } from '../services/storageService';
 
-const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
+const ClientModal = ({ isOpen, onClose, onSave, initialData, allClients = [] }) => {
     // Les 10 champs demandés pour la fiche client
     const [enseigne, setEnseigne] = useState(initialData?.enseigne || '');
     const [logo, setLogo] = useState(initialData?.logo || '');
@@ -121,8 +121,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
             return;
         }
 
-        const existingClients = getClients();
-        const isDuplicate = existingClients.some(c => 
+        const isDuplicate = allClients.some(c => 
             c.enseigne.toLowerCase() === cleanEnseigne.toLowerCase() && 
             (!initialData || c.id !== initialData.id)
         );
@@ -133,7 +132,7 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
         }
 
         const newClient = {
-            id: initialData ? initialData.id : generateSequentialClientId(cleanEnseigne, dateDebut),
+            id: initialData ? initialData.id : generateSequentialClientId(allClients),
             enseigne: cleanEnseigne,
             logo,
             projet,
@@ -150,21 +149,23 @@ const ClientModal = ({ isOpen, onClose, onSave, initialData }) => {
             dateFin,
             bonCommande,
             regime,
-            montantMensuel: regime === 'Abonnement' ? montantMensuel : null,
-            jourPaiement: regime === 'Abonnement' ? jourPaiement : null,
-            delaiPaiement,
+            montantMensuel: regime === 'Abonnement' ? (parseFloat(montantMensuel) || 0) : null,
+            jourPaiement: regime === 'Abonnement' ? (parseInt(jourPaiement, 10) || 1) : null,
+            delaiPaiement: String(delaiPaiement),
             modeCycle: regime === 'Abonnement' ? modeCycle : null,
-            jourCycle: regime === 'Abonnement' ? (modeCycle === 'Personnalisé' ? jourCycle : (modeCycle === 'Du 15 au 14' ? 15 : ((modeCycle === "Date de début" || modeCycle === "Date d'entrée") && dateDebut ? parseInt(dateDebut.split('-')[2], 10) : 1))) : null,
-            dureeMois: regime === 'One-Shot' ? dureeMois : null,
-            montantTotal: regime === 'One-Shot' ? montantTotal : null,
+            jourCycle: regime === 'Abonnement' ? (modeCycle === 'Personnalisé' ? (parseInt(jourCycle, 10) || 1) : (modeCycle === 'Du 15 au 14' ? 15 : ((modeCycle === "Date de début" || modeCycle === "Date d'entrée") && dateDebut ? parseInt(dateDebut.split('-')[2], 10) : 1))) : null,
+            dureeMois: regime === 'One-Shot' ? String(dureeMois) : null,
+            montantTotal: regime === 'One-Shot' ? String(montantTotal) : null,
             datePaiement: regime === 'One-Shot' ? datePaiementOneShot : null,
             // Nettoyer les listes vides avant de sauvegarder
-            servicesRecurrents: regime === 'Abonnement'
-                ? servicesRecurrents.filter(s => s.desc.trim() !== '')
-                : servicesRecurrents.filter(s => s.desc.trim() !== ''),
-            projectCosts: projectCosts.filter(c => c.nom.trim() !== '' && c.montant !== ''),
-            totalCosts,
-            netMargin,
+            servicesRecurrents: servicesRecurrents
+                .filter(s => s.desc.trim() !== '')
+                .map(({ id, ...s }) => ({ ...s, prix: String(s.prix) })),
+            projectCosts: projectCosts
+                .filter(c => c.nom.trim() !== '' && c.montant !== '')
+                .map(({ id, ...c }) => ({ ...c, montant: String(c.montant) })),
+            totalCosts: parseFloat(totalCosts) || 0,
+            netMargin: parseFloat(netMargin) || 0,
             dureeService,
             sousTVA,
             employeAssocie,

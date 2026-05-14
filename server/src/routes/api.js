@@ -5,6 +5,8 @@ import * as bankController from '../controllers/bankController.js';
 import * as rhController from '../controllers/rhController.js';
 import * as auditController from '../controllers/auditController.js';
 import * as authController from '../controllers/authController.js';
+import * as quoteController from '../controllers/quoteController.js';
+import * as employeeController from '../controllers/employeeController.js';
 import * as migrationController from '../controllers/migrationController.js';
 
 const router = express.Router();
@@ -28,7 +30,20 @@ router.delete('/invoices/:id', invoiceController.remove);
 // Bank Transactions
 router.get('/bank/transactions', bankController.getAll);
 router.post('/bank/transactions', bankController.create);
+router.put('/bank/transactions/:id', bankController.update);
 router.delete('/bank/transactions/:id', bankController.remove);
+
+// Quotes
+router.get('/quotes', quoteController.getAll);
+router.post('/quotes', quoteController.create);
+router.put('/quotes/:id', quoteController.update);
+router.delete('/quotes/:id', quoteController.remove);
+
+// Employees
+router.get('/employees', employeeController.getAll);
+router.post('/employees', employeeController.create);
+router.put('/employees/:id', employeeController.update);
+router.delete('/employees/:id', employeeController.remove);
 
 // RH States
 router.get('/rh-states', rhController.getAll);

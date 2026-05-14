@@ -205,22 +205,54 @@ export const loadConfig = (key, defaultData) => {
         if (saved) {
             let parsed = saved;
             if (Array.isArray(parsed) && Array.isArray(defaultData)) {
-                // Force remove old versions of these packages that had the wrong category
-                parsed = parsed.filter(p => !['S_PACK_SM_1', 'S_PACK_SM_2'].includes(p.id));
+                // 1. Force remove specific old/buggy items
+                if (key === 'services') {
+                    parsed = parsed.filter(p => !['S_PACK_SM_1', 'S_PACK_SM_2'].includes(p.id));
+                }
 
-                // To ensure new configurations get added without wiping user changes
-                const missing = defaultData.filter(d => !parsed.some(p => p.id === d.id));
+                // 2. Deduplicate existing parsed data by ID (just in case)
+                const uniqueParsed = [];
+                const seenIds = new Set();
+                const seenNames = new Set(); // For RH deduplication by name
 
-                if (missing.length > 0) {
-                    const merged = [...parsed, ...missing];
+                parsed.forEach(item => {
+                    const itemId = item.id;
+                    const itemName = item.nom ? item.nom.toLowerCase().trim() : null;
+
+                    // Strict deduplication: check both ID and Name (for RH)
+                    const isDuplicateId = itemId && seenIds.has(itemId);
+                    const isDuplicateName = (key === 'rh' && itemName && seenNames.has(itemName));
+
+                    if (!isDuplicateId && !isDuplicateName) {
+                        if (itemId) seenIds.add(itemId);
+                        if (itemName) seenNames.add(itemName);
+                        uniqueParsed.push(item);
+                    }
+                });
+
+                // 3. Find missing items from defaultData
+                const missing = defaultData.filter(d => {
+                    const dId = d.id;
+                    const dName = d.nom ? d.nom.toLowerCase().trim() : null;
+
+                    if (seenIds.has(dId)) return false;
+                    if (key === 'rh' && dName && seenNames.has(dName)) return false;
+                    
+                    return true;
+                });
+
+                if (missing.length > 0 || uniqueParsed.length !== parsed.length) {
+                    const merged = [...uniqueParsed, ...missing];
                     setStorage(`mynds_config_${key}`, merged);
                     return merged;
                 }
+                return uniqueParsed;
             }
             return parsed;
         }
         return defaultData;
     } catch (e) {
+        console.error(`Error loading config for ${key}:`, e);
         return defaultData;
     }
 };
