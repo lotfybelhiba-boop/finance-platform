@@ -53,17 +53,11 @@ class ErrorBoundary extends React.Component {
 
 function App() {
   useEffect(() => {
-    // Clear legacy local storage business data to ensure PostgreSQL is the sole source of truth
-    const legacyKeys = [
-      'mynds_clients', 'mynds_factures', 'mynds_bank_transactions', 
-      'mynds_rh_states', 'mynds_audit_history', 'mynds_devis', 
-      'mynds_notes', 'mynds_migrated_to_pg', 'mynds_last_sync'
-    ];
-    legacyKeys.forEach(key => localStorage.removeItem(key));
+    // PROTECTED: Removed local storage wipe to prevent accidental data loss.
   }, []);
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('mynds_auth_token') === 'true' || localStorage.getItem('mynds_user') !== null;
+    return localStorage.getItem('mynds_auth_token') === 'true';
   });
 
   const handleLogin = () => {

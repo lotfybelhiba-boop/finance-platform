@@ -16,6 +16,7 @@ const BanquePage = () => {
         addBankTransaction, 
         updateBankTransaction, 
         deleteBankTransaction,
+        refreshAll,
         loading 
     } = useData();
 
@@ -1709,11 +1710,7 @@ const BanquePage = () => {
                     <BankReconciliationTab 
                         factures={factures} 
                         manualTransactions={manualTransactions} 
-                        onRefresh={() => {
-                            setFactures(getFactures());
-                            const savedTx = getBankTransactions();
-                            if (savedTx) setManualTransactions(savedTx);
-                        }} 
+                        onRefresh={refreshAll} 
                     />
                 </div>
             )}
