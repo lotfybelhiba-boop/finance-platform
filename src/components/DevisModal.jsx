@@ -55,18 +55,23 @@ const DevisModal = ({ isOpen, onClose, onSave }) => {
         const selectedClientObj = clients.find(c => c.enseigne === client);
         
         onSave({
-            id: `DEV-${new Date().getFullYear()}-${(lignes.length + parseInt(timestampSuffix)).toString().padStart(3, '0')}`,
+            id: `DEV-${new Date().getFullYear()}-${timestampSuffix}`,
             clientId: selectedClientObj?.id || "N/A",
             clientName: client,
             dateEmi: dateEmi,
             valideJusquau: validite || "N/A",
             montant: parseFloat(totalTTC) || 0,
             statut: statut,
-            lines: lignes,
+            lines: lignes.map(({ id, ...l }) => ({
+                ...l,
+                id: id.includes('ligne-') || id.includes('srv-') ? `ql-${Date.now()}-${Math.random().toString(36).substr(2, 5)}` : id,
+                qte: parseFloat(l.qte) || 0,
+                prix: parseFloat(l.prix) || 0
+            })),
             notes: notes
         });
         onClose();
-    }, [client, clients, dateEmi, lignes, notes, onClose, onSave, statut, totalTTC, sousTotalHT, validite]);
+    }, [client, clients, dateEmi, lignes, notes, onClose, onSave, statut, totalTTC, validite]);
 
     const handleDownloadPDF = (e) => {
         e.preventDefault();

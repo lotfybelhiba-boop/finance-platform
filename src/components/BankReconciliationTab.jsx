@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { Upload, FileText, CheckCircle, AlertTriangle, XCircle, Search, ArrowRight, ShieldCheck, Zap, MoreHorizontal } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { findIntelligentMatch, INVOICE_STATUSES } from '../utils/bankUtils';
-import { saveFactures, saveBankTransactions } from '../services/storageService';
+import { useData } from '../context/DataContext';
 
 const BankReconciliationTab = ({ factures, manualTransactions, onRefresh }) => {
+    const { updateInvoice, addBankTransaction } = useData();
     const [extractData, setExtractData] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [headers, setHeaders] = useState([]);
@@ -94,43 +95,33 @@ const BankReconciliationTab = ({ factures, manualTransactions, onRefresh }) => {
         setMatches(newMatches);
     };
 
-    const handleConfirmReconciliation = (match) => {
-        // 1. Update Invoice Status
-        const updatedFactures = factures.map(f => {
-            if (f.id === match.facture.id) {
-                return {
-                    ...f,
-                    statut: INVOICE_STATUSES.PAID_RECONCILED,
-                    reconciliationDetails: {
-                        date: new Date().toISOString(),
-                        txDesc: match.tx.desc,
-                        txAmount: match.tx.amount,
-                        matchScore: match.score
-                    }
-                };
-            }
-            return f;
-        });
+    const handleConfirmReconciliation = async (match) => {
+        try {
+            // 1. Update Invoice Status
+            await updateInvoice(match.facture.id, {
+                ...match.facture,
+                statut: INVOICE_STATUSES.PAID_RECONCILED
+            });
 
-        // 2. Add as Manual Transaction if not already there (to reflected in bank balance)
-        const newTransaction = {
-            id: `rec-${Date.now()}`,
-            date: match.tx.date,
-            desc: `[Rapproché] ${match.tx.desc}`,
-            bank: 'BIAT', // Default to BIAT for reconciliation extracts generally
-            type: 'Credit',
-            amount: match.tx.amount,
-            category: 'Facture',
-            originalId: match.facture.id,
-            reconciled: true
-        };
+            // 2. Add as Manual Transaction
+            const newTransaction = {
+                date: match.tx.date,
+                desc: `[Rapproché] ${match.tx.desc}`,
+                bank: 'BIAT', 
+                type: 'Credit',
+                amount: match.tx.amount,
+                category: 'Facture',
+                originalId: match.facture.id
+            };
 
-        saveFactures(updatedFactures);
-        saveBankTransactions([...manualTransactions, newTransaction]);
-        
-        // Remove from current matches view
-        setMatches(prev => prev.filter(m => m.id !== match.id));
-        onRefresh();
+            await addBankTransaction(newTransaction);
+            
+            // Remove from current matches view
+            setMatches(prev => prev.filter(m => m.id !== match.id));
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            alert("Erreur lors du rapprochement : " + err.message);
+        }
     };
 
     const stats = useMemo(() => {

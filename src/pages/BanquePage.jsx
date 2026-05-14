@@ -19,7 +19,7 @@ const BanquePage = () => {
         loading 
     } = useData();
 
-    const activeClients = (clients || []).filter(c => c.etatClient === 'Actif');
+    const activeClientsList = useMemo(() => (clients || []).filter(c => c.etatClient === 'Actif'), [clients]);
 
     // Sponsoring loaded from local storage (remaining UI pref)
     const [sponsoringList, setSponsoringList] = useState(() => getStorage('mynds_sponsoring', []));
@@ -916,7 +916,7 @@ const BanquePage = () => {
                                     let calculatedDate;
 
                                     // IGNORER L'ECHEANCE DE LA FACTURE : TOUJOURS CALCULER DEPUIS LA FICHE CLIENT EN TEMPS RÉEL
-                                    const clientRef = activeClients.find(c => c.id === f.clientId || c.enseigne === f.client);
+                                    const clientRef = activeClientsList.find(c => c.id === f.clientId || c.enseigne === f.client);
 
                                     if (clientRef) {
                                         const delay = parseInt(clientRef.delaiPaiement, 10);
@@ -973,7 +973,7 @@ const BanquePage = () => {
                             });
 
                             // 2. Active Abonnements not invoiced for the current month
-                            activeClients.forEach(c => {
+                            activeClientsList.forEach(c => {
                                 if (c.regime === 'Abonnement' && isMonthInContract(c, currentY, currentM)) {
                                     const hasInvoiceThisMonth = factures.some(f => {
                                         if (f.client !== c.enseigne && f.clientId !== c.id) return false;
@@ -1401,7 +1401,7 @@ const BanquePage = () => {
                                     style={{ padding: '8px 10px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', fontSize: '12px', fontWeight: '800', outline: 'none', color: rhClientFilter !== 'all' ? '#f59e0b' : 'var(--text-main)' }}
                                 >
                                     <option value="all">Tous Projets</option>
-                                    {activeClients.map(c => (
+                                    {activeClientsList.map(c => (
                                         <option key={c.id} value={c.enseigne}>{c.enseigne}</option>
                                     ))}
                                 </select>

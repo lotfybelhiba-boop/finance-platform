@@ -14,24 +14,51 @@ export const getAll = async (req, res) => {
 
 export const create = async (req, res) => {
   try {
+    const { lines, ...data } = req.body;
     const quote = await prisma.quote.create({
-      data: req.body
+      data: {
+        ...data,
+        lines: {
+          create: (lines || []).map(({ id, ...l }) => l)
+        }
+      },
+      include: {
+        lines: true
+      }
     });
-    res.json(quote);
+    res.status(201).json(quote);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 };
 
 export const update = async (req, res) => {
+  const { id } = req.params;
   try {
-    const quote = await prisma.quote.update({
-      where: { id: req.params.id },
-      data: req.body
+    const { lines, createdAt, updatedAt, ...data } = req.body;
+    
+    const quote = await prisma.$transaction(async (tx) => {
+      // 1. Delete old lines
+      await tx.quoteLine.deleteMany({ where: { quoteId: id } });
+      
+      // 2. Update main fields and recreate lines
+      return tx.quote.update({
+        where: { id },
+        data: {
+          ...data,
+          lines: {
+            create: (lines || []).map(({ id, ...l }) => l)
+          }
+        },
+        include: {
+          lines: true
+        }
+      });
     });
+    
     res.json(quote);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 };
 

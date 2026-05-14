@@ -4,6 +4,7 @@ import { Search, Plus, Trash2, Filter, ArrowUpRight, CreditCard, Heart, MoreHori
 import { getBankTransactions, saveBankTransactions, getStorage, setStorage } from '../services/storageService';
 import { generatePendingPersoCharges, PERSO_CATEGORIES } from '../utils/persoUtils';
 import PremiumImportModal from '../components/PremiumImportModal';
+import { useData } from '../context/DataContext';
 
 const ViePersoPage = () => {
     const { 
@@ -322,11 +323,9 @@ const ViePersoPage = () => {
                                                         <td style={{ padding: '4px 24px' }}>
                                                             <select 
                                                                 value={t.bank || 'QNB'} 
-                                                                onChange={(e) => {
+                                                                onChange={async (e) => {
                                                                     const nextBank = e.target.value;
-                                                                    const newTxs = transactions.map(item => item.id === t.id ? { ...item, bank: nextBank } : item);
-                                                                    setTransactions(newTxs);
-                                                                    saveBankTransactions(newTxs);
+                                                                    await updateBankTransaction(t.id, { ...t, bank: nextBank });
                                                                 }}
                                                                 style={{ 
                                                                     background: 'rgba(59, 130, 246, 0.04)', 
